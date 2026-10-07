@@ -83,11 +83,11 @@
     studio.add(new THREE.Mesh(new THREE.BoxGeometry(18,16,18),new THREE.MeshBasicMaterial({color:0x727173,side:THREE.BackSide})));
     function panel(w,h,p,color,power){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({color:new THREE.Color(color).multiplyScalar(power),side:THREE.DoubleSide}));m.position.set(...p);m.lookAt(0,2,0);studio.add(m);}
     panel(5,7,[-4,5,4],0xfff1e6,3);panel(3,6,[4,4,3],0xe0e7f1,2);panel(4,3,[0,7,-1],0xf4f2ef,2.3);panel(4,7,[0,2,-5],0x15151a,1);
-    const pmrem=new THREE.PMREMGenerator(renderer),env=pmrem.fromScene(studio,.07,.1,30);scene.environment=env.texture;scene.environmentIntensity=.36;pmrem.dispose();
+    const pmrem=new THREE.PMREMGenerator(renderer),env=pmrem.fromScene(studio,.07,.1,30);scene.environment=env.texture;scene.environmentIntensity=.22;pmrem.dispose();
     studio.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose();}});
     RectAreaLightUniformsLib.init();
-    const keyBox=new THREE.RectAreaLight(0xfff2e9,4.9,2.8,4.5);keyBox.position.set(-2.7,4.4,3.5);keyBox.lookAt(0,2,0);scene.add(keyBox);
-    const fill=new THREE.RectAreaLight(0xe8edf5,1.45,3,4);fill.position.set(3,3.4,3);fill.lookAt(0,2,0);scene.add(fill);
+    const keyBox=new THREE.RectAreaLight(0xfff2e9,5.4,2.8,4.5);keyBox.position.set(-2.7,4.4,3.5);keyBox.lookAt(0,2,0);scene.add(keyBox);
+    const fill=new THREE.RectAreaLight(0xe8edf5,.80,3,4);fill.position.set(3,3.4,3);fill.lookAt(0,2,0);scene.add(fill);
     const rim=new THREE.RectAreaLight(0xe3e9f2,2.3,1.5,4);rim.position.set(3,3.5,-2.5);rim.lookAt(0,2,0);scene.add(rim);
     const shadowLight=new THREE.DirectionalLight(0xfff0e4,.52);shadowLight.position.set(-3.6,6,4.5);shadowLight.target.position.set(0,2,0);shadowLight.castShadow=true;
     shadowLight.shadow.mapSize.set(2048,2048);Object.assign(shadowLight.shadow.camera,{left:-3,right:3,top:4,bottom:-2,near:.5,far:13});shadowLight.shadow.bias=-.0001;shadowLight.shadow.normalBias=.010;shadowLight.shadow.radius=3;scene.add(shadowLight,shadowLight.target);
@@ -127,17 +127,19 @@
     function tileNoise(x,y,size){const ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy,sx=fx*fx*(3-2*fx),sy=fy*fy*(3-2*fy),a=hash((ix+size)%size,(iy+size)%size),b=hash((ix+1+size)%size,(iy+size)%size),c=hash((ix+size)%size,(iy+1+size)%size),d=hash((ix+1+size)%size,(iy+1+size)%size);return a+(b-a)*sx+(c-a)*sy+(a-b-c+d)*sx*sy;}
     function dataTexture(size,pixel){const pixels=new Uint8Array(size*size*4);for(let y=0;y<size;y++)for(let x=0;x<size;x++){const p=(y*size+x)*4,value=pixel(x,y,size);for(let c=0;c<4;c++)pixels[p+c]=THREE.MathUtils.clamp(Math.round(value[c]),0,255);}const t=new THREE.DataTexture(pixels,size,size);t.wrapS=t.wrapT=THREE.RepeatWrapping;t.magFilter=THREE.LinearFilter;t.minFilter=THREE.LinearMipmapLinearFilter;t.generateMipmaps=true;t.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());t.needsUpdate=true;return t;}
     // R/G: mottling and local roughness. B: an irregular embossed pore field.
-    const dermis=dataTexture(512,(x,y,s)=>{const a=tileNoise(x/s*4,y/s*4,4),b=tileNoise(x/s*19,y/s*19,19),c=tileNoise(x/s*67,y/s*67,67),gx=x/8,gy=y/8,ix=Math.floor(gx),iy=Math.floor(gy);let pore=0;
+    const dermis=dataTexture(1024,(x,y,s)=>{const a=tileNoise(x/s*4,y/s*4,4),b=tileNoise(x/s*19,y/s*19,19),c=tileNoise(x/s*67,y/s*67,67),gx=x/s*64,gy=y/s*64,ix=Math.floor(gx),iy=Math.floor(gy);let pore=0;
       for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){const hx=(ix+i+64)%64,hy=(iy+j+64)%64;if(hash(hx+117,hy+939)<.30)continue;const cx=ix+i+.05+.90*hash(hx,hy),cy=iy+j+.05+.90*hash(hy+701,hx+913),r=.06+.13*hash(hx+519,hy+22),q=((gx-cx)/r)**2+((gy-cy)/(r*1.18))**2;pore+=Math.exp(-q*1.6)*.33;}
-      const creases=.012*Math.sin(x/s*Math.PI*34+Math.sin(y/s*Math.PI*30)*2)+.018*(c-.5),h=.53-pore+creases;
-      return[255*(.50+.29*(a-.5)+.17*(b-.5)),255*(.55+.20*(b-.5)+.18*(c-.5)),255*h,255];});
-    const fabricTexture=dataTexture(512,(x,y,s)=>{const a=Math.cos(x*Math.PI/4),b=Math.cos(y*Math.PI/4),alternate=(Math.floor(x/8)+Math.floor(y/8))%2,height=.47+.18*(alternate?a:b)+.07*(alternate?b:a)+.02*Math.sin((x+y)*2.3);return[128+13*a+9*b,210+17*a,255*height,255];});
-    const silicone=new THREE.MeshPhysicalMaterial({color:0xc19076,roughness:.46,metalness:0,clearcoat:.045,clearcoatRoughness:.5,envMapIntensity:.8,specularIntensity:1,vertexColors:true});
+      const creases=.012*Math.sin(x/s*Math.PI*34+Math.sin(y/s*Math.PI*30)*2)+.018*(c-.5),h=.53-pore+creases,px=x/s*16,py=y/s*16,fx=Math.floor(px),fy=Math.floor(py),seed=hash(fx+19,fy+107),pigment=seed>.95?Math.exp(-(((px-fx-.2-.6*hash(fx+71,fy+97))/.11)**2+((py-fy-.2-.6*hash(fx+84,fy+21))/.14)**2))*.65:0;
+      return[255*(.50+.29*(a-.5)+.17*(b-.5)),255*(.55+.20*(b-.5)+.18*(c-.5)),255*h,255*(1-pigment)];});
+    const fabricTexture=dataTexture(1024,(x,y,s)=>{const cellX=Math.floor(x/8),cellY=Math.floor(y/8),jitter=(hash(cellX,cellY)-.5)*.55,a=Math.cos((x+jitter)*Math.PI/4),b=Math.cos((y-jitter)*Math.PI/4),alternate=(cellX+cellY)%2,height=.47+.18*(alternate?a:b)+.07*(alternate?b:a)+.018*(hash(x,y)-.5);return[128+12*a+8*b+4*jitter,210+17*a,255*height,255];});
+    const contactAppearance={position:{value:new THREE.Vector3(10,10,10)},amount:{value:0}};
+    const silicone=new THREE.MeshPhysicalMaterial({color:0xc9aa95,roughness:.40,metalness:0,clearcoat:.015,clearcoatRoughness:.48,envMapIntensity:.75,specularIntensity:.9,vertexColors:true});
     silicone.onBeforeCompile=shader=>{
       shader.uniforms.dermis={value:dermis};
+      shader.uniforms.pressPosition=contactAppearance.position;shader.uniforms.pressAmount=contactAppearance.amount;
       shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 skinPosition; attribute vec3 skinNormal; varying vec3 vSkinPosition; varying vec3 vSkinNormal;').replace('#include <begin_vertex>','#include <begin_vertex>\nvSkinPosition=skinPosition; vSkinNormal=skinNormal;');
       shader.fragmentShader=shader.fragmentShader.replace('#include <common>',/* glsl */`#include <common>
-        uniform sampler2D dermis; varying vec3 vSkinPosition; varying vec3 vSkinNormal;
+        uniform sampler2D dermis; uniform vec3 pressPosition; uniform float pressAmount; varying vec3 vSkinPosition; varying vec3 vSkinNormal;
         vec4 skinSample(float scale) {
           vec3 w=pow(abs(vSkinNormal),vec3(4.0)); w/=max(dot(w,vec3(1.0)),.0001);
           return texture2D(dermis,vSkinPosition.yz*scale)*w.x+
@@ -146,10 +148,17 @@
         }
       `).replace('#include <map_fragment>',/* glsl */`#include <map_fragment>
         vec4 skinFine=skinSample(5.0),skinMacro=skinSample(.85);
-        float mottling=(skinMacro.r-.5)*.28+(skinFine.r-.5)*.08;
-        diffuseColor.rgb*=vec3(1.0+mottling*.6,1.0+mottling,1.0+mottling*1.15);
+        float mottling=(skinMacro.r-.5)*.55+(skinFine.r-.5)*.11;
+        float capillaries=(skinMacro.g-.5)*.08;
+        diffuseColor.rgb*=vec3(1.0+mottling*.45+capillaries,1.0+mottling-capillaries*.8,1.0+mottling*1.1-capillaries);
+        diffuseColor.rgb*=1.0-max(0.0,.53-skinFine.b)*.12;
+        float pigment=(1.0-skinFine.a)*(.26+.44*smoothstep(.75,1.1,abs(vSkinPosition.x)));
+        diffuseColor.rgb*=vec3(1.0-pigment*.45,1.0-pigment*.62,1.0-pigment*.71);
+        float pressed=exp(-dot(vSkinPosition-pressPosition,vSkinPosition-pressPosition)/.007)*pressAmount;
+        diffuseColor.rgb*=vec3(1.0+pressed*.035,1.0+pressed*.055,1.0+pressed*.055);
       `).replace('#include <roughnessmap_fragment>',/* glsl */`#include <roughnessmap_fragment>
         roughnessFactor*=clamp(.77+skinFine.g*.46,.77,1.12);
+        roughnessFactor*=1.0-.11*exp(-pow((vSkinPosition.y-2.68)/.42,2.0));
       `).replace('#include <normal_fragment_maps>',/* glsl */`#include <normal_fragment_maps>
         vec3 sigmaX=dFdx(-vViewPosition),sigmaY=dFdy(-vViewPosition);
         vec3 r1=cross(sigmaY,normal),r2=cross(normal,sigmaX);
@@ -178,7 +187,7 @@
       shader.fragmentShader=shader.fragmentShader.replace('#include <lights_fragment_begin>',THREE.ShaderChunk.lights_fragment_begin.replaceAll('RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );','RE_Direct( directLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );'+direct).replace('RE_Direct_RectArea( rectAreaLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );','RE_Direct_RectArea( rectAreaLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight );'+area));
     };
     silicone.customProgramCacheKey=()=> 'embossed-dermis-v1';
-    const fabric=new THREE.MeshPhysicalMaterial({color:0x96172c,roughness:.78,metalness:0,sheen:.8,sheenColor:0xba5961,sheenRoughness:.75,envMapIntensity:.4,side:THREE.DoubleSide});
+    const fabric=new THREE.MeshPhysicalMaterial({color:0xb22b3b,roughness:.73,metalness:0,sheen:.65,sheenColor:0xc3767a,sheenRoughness:.72,envMapIntensity:.45,side:THREE.DoubleSide});
     fabric.onBeforeCompile=shader=>{
       shader.uniforms.weave={value:fabricTexture};
       shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec2 vWeave;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWeave=uv;');
@@ -188,7 +197,7 @@
       `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor*=.86+fiber.g*.19;').replace('#include <normal_fragment_maps>',/* glsl */`#include <normal_fragment_maps>
         vec3 sigmaX=dFdx(-vViewPosition),sigmaY=dFdy(-vViewPosition);
         vec3 r1=cross(sigmaY,normal),r2=cross(normal,sigmaX);
-        float det=dot(sigmaX,r1),height=fiber.b*.00028;
+        float det=dot(sigmaX,r1),height=fiber.b*.00018;
         normal=normalize(abs(det)*normal-sign(det)*(dFdx(height)*r1+dFdy(height)*r2));
       `);
     };
@@ -208,13 +217,19 @@
     const armProfile=[[-1.8,1.54,.15],[-.2,1.45,.17],[.5,1.34,.19],[.96,1.25,.225],[1.43,1.18,.211],[1.74,1.13,.238],[2.12,1.05,.271],[2.42,1.01,.29],[2.60,.985,.27],[2.72,.93,.175],[2.80,.80,.01],[2.86,.72,.002]],armSlopes=profileSlopes(armProfile);
     function fieldContext(y){const[w,d]=section(y),[armX,armR]=profileAt(armProfile,armSlopes,y);return{y,w,d,armX,armR,breastY:((y-1.97)/(y>1.97?.73:.43))**2};}
     function smoothUnion(a,b,k){const h=THREE.MathUtils.clamp(.5+.5*(b-a)/k,0,1);return b+(a-b)*h-k*h*(1-h);}
-    function torsoDistance(x,z,c){const front=z>0?1:0,throat=.014*Math.exp(-(((Math.abs(x)-(.13+.05*(c.y-3.1)))/.065)**2+((c.y-3.2)/.38)**2)),abdomen=.011*Math.exp(-((x/.14)**2+((c.y-1.1)/.37)**2));let d=(Math.sqrt((x/c.w)**2+((z-front*(throat-abdomen))/c.d)**2)-1)*c.d;
-      const blend=.15+.14*THREE.MathUtils.smoothstep(c.y,2.1,2.65);
-      for(const side of [-1,1]){const q=Math.sqrt(((x-side*.43)/.48)**2+c.breastY+((z-.435)/.545)**2);d=smoothUnion(d,(q-1)*.43,blend);}
-      if(z>0&&c.y>2.45&&c.y<3.05){const clavicle=.021*Math.exp(-(((c.y-(2.755-.15*Math.abs(x)-.05*Math.sin(Math.abs(x)*4)))/.061)**2))*Math.exp(-(((Math.abs(x)-.43)/.39)**2)),notch=.017*Math.exp(-((x/.10)**2+((c.y-2.9)/.095)**2));d+=notch-clavicle;}
+    function torsoDistance(x,z,c){const front=THREE.MathUtils.smoothstep(z,-.03,.34),throat=.022*Math.exp(-(((Math.abs(x)-(.125+.10*(c.y-2.96)))/.057)**2+((c.y-3.18)/.39)**2)),abdomen=.009*Math.exp(-((x/.15)**2+((c.y-1.1)/.38)**2));let rise=0;
+      // A continuous anterior envelope avoids the intersection ridge made by
+      // unioning two ellipsoids. The upper pole joins the chest gradually;
+      // the lower pole has a shorter, fuller contour under garment support.
+      for(const side of [-1,1]){const cy=1.970+side*.009,rx=.455+side*.003,ry=c.y>cy?.725:.447,cx=side*(.454+side*.005),q=((x-cx)/rx)**2+((c.y-cy)/ry)**2;rise+=(.560+side*.004)*Math.exp(-1.65*q);}
+      const core=(Math.sqrt((x/c.w)**2+((z-front*(throat-abdomen))/c.d)**2)-1)*c.d;
+      let d=(Math.sqrt((x/c.w)**2+((z-front*(throat-abdomen+rise))/c.d)**2)-1)*c.d,lobes=10;
+      for(const side of [-1,1]){const cy=1.97+side*.008,rx=.460+side*.003,ry=c.y>cy?.735:.447,cz=.409+.032*Math.exp(-(((c.y-1.91)/.44)**2)),q=Math.sqrt(((x-side*(.450+side*.006))/rx)**2+((c.y-cy)/ry)**2+((z-cz)/.552)**2);lobes=smoothUnion(lobes,(q-1)*.43,.055);}
+      const rounded=smoothUnion(core,lobes,.14+.06*THREE.MathUtils.smoothstep(c.y,2.10,2.65)),t=THREE.MathUtils.clamp((Math.abs(x)-.12)/.33,0,1),medialBlend=t*t*t*(t*(t*6-15)+10)*(1-THREE.MathUtils.smoothstep(c.y,2.06,2.68));d+=(rounded-d)*medialBlend;
+      if(z>0&&c.y>2.45&&c.y<3.05){const clavicle=.016*Math.exp(-(((c.y-(2.765-.145*Math.abs(x)-.038*Math.sin(Math.abs(x)*4)))/.070)**2))*Math.exp(-(((Math.abs(x)-.44)/.40)**2)),notch=.015*Math.exp(-((x/.105)**2+((c.y-2.91)/.10)**2));d+=notch-clavicle;}
       return Math.max(d,-.1-c.y,c.y-5);
     }
-    function armDistance(x,z,c){const biceps=Math.exp(-(((c.y-2.08)/.31)**2)),elbow=Math.exp(-(((c.y-1.43)/.13)**2)),zCenter=-.020+.023*biceps-.018*elbow,depthScale=.91+.095*biceps-.065*elbow;return Math.max(Math.sqrt((Math.abs(x)-c.armX)**2+((z-zCenter)/depthScale)**2)-c.armR,-1.8-c.y,c.y-2.85);}
+    function armDistance(x,z,c){const biceps=Math.exp(-(((c.y-2.08)/.31)**2)),elbow=Math.exp(-(((c.y-1.43)/.13)**2)),zCenter=-.020+.023*biceps-.018*elbow,depthScale=.91+.095*biceps-.065*elbow,crease=.0038*Math.exp(-(((c.y-1.435+.16*(Math.abs(x)-c.armX))/.013)**2))*THREE.MathUtils.smoothstep(z,.06,.16);return Math.max(Math.sqrt((Math.abs(x)-c.armX)**2+((z-zCenter)/depthScale)**2)-c.armR+crease,-1.8-c.y,c.y-2.85);}
     function skinDistance(x,z,c,united=false){const t=torsoDistance(x,z,c);return united?smoothUnion(t,armDistance(x,z,c),.14):t;}
     function surfaceZ(x,y,united=false,facing=1){const c=fieldContext(y);let high=1.5,low=0,found=false;
       for(let i=1;i<=30;i++){const z=1.5-i*.05;if(skinDistance(x,z*facing,c,united)<=0){low=z;found=true;break;}high=z;}
@@ -257,17 +272,18 @@
     // The cage is resampled with cubic B-splines. This preserves a smooth
     // displacement gradient across cell boundaries without inventing wrinkles.
     const renderDisplacement=new Float32Array(N*3),renderGradient=new Float32Array(N*9);
+    const gradientNodes=[];for(let z=1;z<NZ-1;z++)for(let y=1;y<NY-1;y++)for(let x=1;x<NX-1;x++){const i=indexAt(x,y,z);if(inv[i-1]||inv[i+1]||inv[i-NX]||inv[i+NX]||inv[i-NX*NY]||inv[i+NX*NY])gradientNodes.push(i);}
     function cubicWeights(t){return[(1-t)**3/6,(3*t*t*t-6*t*t+4)/6,(-3*t*t*t+3*t*t+3*t+1)/6,t*t*t/6];}
     function volumeBinding(point){const gx=THREE.MathUtils.clamp((point.x-gridMin.x)/GRID,1.001,NX-2.001),gy=THREE.MathUtils.clamp((point.y-gridMin.y)/GRID,1.001,NY-2.001),gz=THREE.MathUtils.clamp((point.z-gridMin.z)/GRID,1.001,NZ-2.001),ix=Math.floor(gx),iy=Math.floor(gy),iz=Math.floor(gz),tx=gx-ix,ty=gy-iy,tz=gz-iz,wx=cubicWeights(tx),wy=cubicWeights(ty),wz=cubicWeights(tz),ids=[],weights=[],gradientIds=new Uint16Array(8),gradientWeights=new Float32Array(8);let j=0;
       for(let z=0;z<4;z++)for(let y=0;y<4;y++)for(let x=0;x<4;x++){const id=indexAt(ix+x-1,iy+y-1,iz+z-1);if(inv[id]){ids.push(id);weights.push(wx[x]*wy[y]*wz[z]);}}
       for(let z=0;z<2;z++)for(let y=0;y<2;y++)for(let x=0;x<2;x++){gradientIds[j]=indexAt(ix+x,iy+y,iz+z);gradientWeights[j++]=(x?tx:1-tx)*(y?ty:1-ty)*(z?tz:1-tz);}return{ids:Uint16Array.from(ids),weights:Float32Array.from(weights),gradientIds,gradientWeights};
     }
     function sampleDisplacement(s,p){p.set(0,0,0);for(let j=0;j<s.ids.length;j++){const k=s.ids[j]*3,w=s.weights[j];p.x+=renderDisplacement[k]*w;p.y+=renderDisplacement[k+1]*w;p.z+=renderDisplacement[k+2]*w;}return p;}
-    function refreshDisplacement(){for(let i=0;i<N*3;i++)renderDisplacement[i]=pos[i]-rest[i];
-      for(let z=1;z<NZ-1;z++)for(let y=1;y<NY-1;y++)for(let x=1;x<NX-1;x++){const i=indexAt(x,y,z),p=i*9;for(let a=0;a<3;a++){renderGradient[p+a]=(renderDisplacement[(i+1)*3+a]-renderDisplacement[(i-1)*3+a])/(2*GRID);renderGradient[p+3+a]=(renderDisplacement[(i+NX)*3+a]-renderDisplacement[(i-NX)*3+a])/(2*GRID);renderGradient[p+6+a]=(renderDisplacement[(i+NX*NY)*3+a]-renderDisplacement[(i-NX*NY)*3+a])/(2*GRID);}}}
+    function refreshDisplacement(){for(const i of activeNodes){const p=i*3;renderDisplacement[p]=pos[p]-rest[p];renderDisplacement[p+1]=pos[p+1]-rest[p+1];renderDisplacement[p+2]=pos[p+2]-rest[p+2];}
+      for(const i of gradientNodes){const p=i*9;for(let a=0;a<3;a++){renderGradient[p+a]=(renderDisplacement[(i+1)*3+a]-renderDisplacement[(i-1)*3+a])/(2*GRID);renderGradient[p+3+a]=(renderDisplacement[(i+NX)*3+a]-renderDisplacement[(i-NX)*3+a])/(2*GRID);renderGradient[p+6+a]=(renderDisplacement[(i+NX*NY)*3+a]-renderDisplacement[(i-NX*NY)*3+a])/(2*GRID);}}}
     function deformNormal(s,normal,result){let a=1,b=0,c=0,d=0,e=1,f=0,g=0,h=0,i=1;for(let j=0;j<8;j++){const p=s.gradientIds[j]*9,w=s.gradientWeights[j];a+=renderGradient[p]*w;d+=renderGradient[p+1]*w;g+=renderGradient[p+2]*w;b+=renderGradient[p+3]*w;e+=renderGradient[p+4]*w;h+=renderGradient[p+5]*w;c+=renderGradient[p+6]*w;f+=renderGradient[p+7]*w;i+=renderGradient[p+8]*w;}const x=normal.x,y=normal.y,z=normal.z;return result.set((e*i-f*h)*x+(f*g-d*i)*y+(d*h-e*g)*z,(c*h-b*i)*x+(a*i-c*g)*y+(b*g-a*h)*z,(b*f-c*e)*x+(c*d-a*f)*y+(a*e-b*d)*z).normalize();}
     const DT=1/120,ITERATIONS=6,root=new THREE.Vector3(),rootVelocity=new THREE.Vector3(),rootTarget=new THREE.Vector3(),rootAcceleration=new THREE.Vector3(),motionTarget=new THREE.Vector3(),zero=new THREE.Vector3(),delta=new THREE.Vector3();
-    let support=.6,moving=null,mode='touch',motion=false,time=0,tick=0,accumulator=0,lastTime=0,settling=false,awakeSteps=0,touchState=null,pressure=.55,withdrawal=null;
+    let support=.6,moving=null,mode='touch',motion=false,time=0,tick=0,accumulator=0,lastTime=0,settling=false,awakeSteps=0,touchState=null,pressure=.55,withdrawal=null,appearanceContact=null;
     function solveEdges(reverse){for(let n=0;n<activeEdges.length;n++){const e=activeEdges[reverse?activeEdges.length-1-n:n],a=E[e*2],b=E[e*2+1],ma=inv[a],mb=inv[b];const p=a*3,q=b*3,dx=pos[q]-pos[p],dy=pos[q+1]-pos[p+1],dz=pos[q+2]-pos[p+2],length=Math.sqrt(dx*dx+dy*dy+dz*dz);if(length<1e-8)continue;
       const alpha=compliance[e]/(DT*DT),dl=(-(length-L[e])-alpha*edgeLambda[e])/(ma+mb+alpha);edgeLambda[e]+=dl;const scale=-dl/length;pos[p]+=dx*scale*ma;pos[p+1]+=dy*scale*ma;pos[p+2]+=dz*scale*ma;pos[q]-=dx*scale*mb;pos[q+1]-=dy*scale*mb;pos[q+2]-=dz*scale*mb;}}
     function solveVolumes(reverse){for(let n=0;n<activeTets.length;n++){const t=activeTets[reverse?activeTets.length-1-n:n],k=t*4,a=T[k],b=T[k+1],c=T[k+2],d=T[k+3],ma=inv[a],mb=inv[b],mc=inv[c],md=inv[d];const p=a*3,q=b*3,r=c*3,s=d*3;
@@ -290,7 +306,7 @@
 
     // One smooth implicit skin surface joins the shoulders, torso and arms.
     // The simulation remains a small shared lattice; no physics object per voxel.
-    const resolution=112,iso=new MarchingCubes(resolution,silicone,false,false,100000);iso.isolation=0;
+    const resolution=144,iso=new MarchingCubes(resolution,silicone,false,false,200000);iso.isolation=0;
     const bounds={min:new THREE.Vector3(-1.87,-1.95,-.72),max:new THREE.Vector3(1.87,4.15,1.32)},extent=bounds.max.clone().sub(bounds.min);
     for(let y=0;y<resolution;y++){const wy=bounds.min.y+y/resolution*extent.y,c=fieldContext(wy);for(let z=0;z<resolution;z++){const wz=bounds.min.z+z/resolution*extent.z;for(let x=0;x<resolution;x++){const wx=bounds.min.x+x/resolution*extent.x;iso.field[x+y*resolution+z*resolution*resolution]=-skinDistance(wx,wz,c,true);}}if(y%20===0)await new Promise(resolve=>setTimeout(resolve,0));}
     iso.update();const rawSkin=new THREE.BufferGeometry(),rawPositions=iso.geometry.attributes.position.array.slice(0,iso.count*3);
@@ -324,8 +340,9 @@
       else p.z=surfaceZ(p.x,p.y,true,p.z>=0?1:-1);
       return{...volumeBinding(p),base:p,normal:fieldNormal(p.x,p.y,p.z,true),offset};
     }
-    function bindCup(side,u,v,offset=.017){const[x,y]=cupXY(side,u,v),seam=.0022*Math.exp(-(((u-(.54+.12*v))/.016)**2)),hem=.0015*Math.exp(-((v/.045)**2));offset-=seam+hem;if(u<=.70)return bindXY(x,y,offset);const[w,d]=section(y),theta=Math.atan2(Math.abs(x)/w,surfaceZ(x,y)/d),wrap=THREE.MathUtils.smoothstep(u,.70,1);return bindTheta(side*(theta+(1.50-theta)*wrap),y,offset);}
+    function bindCup(side,u,v,offset=.017){const[x,y]=cupXY(side,u,v),seam=.0022*Math.exp(-(((u-(.54+.12*v))/.016)**2)),hem=.0015*Math.exp(-((v/.045)**2)),ease=.0030*Math.sin(u*51+v*9)*Math.exp(-(((v-.075)/.070)**2))*Math.sin(Math.PI*u)**2+.0013*Math.sin(u*35-v*17)*Math.exp(-(((u-.80)/.10)**2+((v-.84)/.20)**2));offset+=ease-seam-hem;if(u<=.70)return bindXY(x,y,offset);const[w,d]=section(y),theta=Math.atan2(Math.abs(x)/w,surfaceZ(x,y)/d),wrap=THREE.MathUtils.smoothstep(u,.70,1);return bindTheta(side*(theta+(1.50-theta)*wrap),y,offset);}
     const skinBindings=[];for(let i=0;i<skinRest.length/3;i++){const point=new THREE.Vector3().fromArray(skinRest,i*3);skinBindings.push(volumeBinding(point));}
+    const dynamicSkin=Uint32Array.from(Array.from(skinBindings.keys()).filter(i=>skinBindings[i].ids.length));
     const sampleP=new THREE.Vector3(),sampleN=new THREE.Vector3(),bindingDelta=new THREE.Vector3();
     function readBinding(s,p=sampleP,n=sampleN){sampleDisplacement(s,bindingDelta);p.copy(s.base).add(bindingDelta);deformNormal(s,s.normal,n);p.addScaledVector(n,s.offset);return p;}
     const clothParts=[];
@@ -335,21 +352,18 @@
       const mesh=new THREE.Mesh(geometry,material);mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=false;model.add(mesh);const item={bindings,points,geometry,mesh};clothParts.push(item);return item;
     }
     for(const side of [-1,1]){
-      clothPatch(64,42,(u,v)=>bindCup(side,u,v),side===-1);
+      clothPatch(96,64,(u,v)=>bindCup(side,u,v),side===-1);
       clothPatch(40,18,(u,v)=>{const theta=side*(1.50+u*1.35),y=(1-u)*(1.68+v*.3023)+u*(1.58+v*.23);return bindTheta(theta,y,.017);},side===-1);
     }
     const bandY=(theta,v)=>1.38+.15*v+.095*(1-Math.cos(theta))+.08*Math.sin(theta)**2;
     clothPatch(112,8,(u,v)=>{const theta=u*Math.PI*2;return bindTheta(theta,bandY(theta,v),.015);});
     for(const side of [-1,1])clothPatch(64,10,(u,v)=>{const wire=bindCup(side,u,0),[w,d]=section(wire.base.y),theta=Math.atan2(wire.base.x/w,wire.base.z/d),low=bandY(theta,.25),y=low+(wire.base.y-low)*v;return u<=.70?bindXY(wire.base.x,y,.0155):bindTheta(theta,y,.0155);},side===-1);
-    clothPatch(18,28,(u,v)=>bindXY((u-.5)*(.30-.08*v),1.49+.494*v,.019));
-    const strapCurves=[];
-    for(const side of [-1,1]){
-      const start=bindCup(side,.74,.94).base,surface=(x,y,facing=1)=>new THREE.Vector3(side*x,y,surfaceZ(side*x,y,true,facing));
-      const shoulder=z=>{let lo=2.50,hi=3.1;for(let j=0;j<22;j++){const y=(lo+hi)*.5;if(skinDistance(side*.765,z,fieldContext(y),true)<0)lo=y;else hi=y;}return new THREE.Vector3(side*.765,(lo+hi)*.5,z);};
-      const curve=new THREE.CatmullRomCurve3([start,surface(.755,2.55),surface(.765,2.68),shoulder(.16),shoulder(0),shoulder(-.16),surface(.765,2.68,-1),surface(.76,2.40,-1),surface(.76,1.69,-1)]);
-      strapCurves.push({side,curve});
-      clothPatch(8,100,(u,v)=>{const p=curve.getPoint(v);p.x+=side*(u-.5)*.078;return bindStrap(p,.018);},side===-1);
-    }
+    clothPatch(18,28,(u,v)=>bindXY((u-.5)*(.30-.156*v),1.50+.46*v,.017));
+    // Follow a continuous cross-section of the shoulder, rather than projecting
+    // a spline onto whichever surface branch happens to be closest.
+    function strapRay(side,transverse,theta){const x=side*(.765+transverse),cy=2.38,dy=Math.cos(theta)*.52,dz=Math.sin(theta)*.75;let lo=0,hi=3;for(let j=0;j<24;j++){const t=(lo+hi)*.5;if(skinDistance(x,dz*t,fieldContext(cy+dy*t),true)<0)lo=t;else hi=t;}const t=(lo+hi)*.5;return new THREE.Vector3(x,cy+dy*t,dz*t);}
+    function strapBinding(side,transverse,v,offset=.018){let p;if(v<=.67)p=strapRay(side,transverse,1.54-v/.67*3.24);else{p=strapRay(side,transverse,-1.70);p.y+=(1.69-p.y)*(v-.67)/.33;p.z=surfaceZ(p.x,p.y,true,-1);}return{...volumeBinding(p),base:p,normal:fieldNormal(p.x,p.y,p.z,true),offset};}
+    for(const side of [-1,1])clothPatch(8,128,(u,v)=>strapBinding(side,(u-.5)*.078,v),side===-1);
 
     // Rounded piping and small stitched seams are geometry, not a printed grid.
     const tubes=[];
@@ -357,41 +371,150 @@
       const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(points,3).setUsage(THREE.DynamicDrawUsage));geometry.setIndex(faces);const mesh=new THREE.Mesh(geometry,material);mesh.frustumCulled=false;mesh.castShadow=true;model.add(mesh);tubes.push({path,radius,points,geometry,centers:new Float64Array(path.length*3),normals:new Float64Array(path.length*3)});
     }
     for(const side of [-1,1]){
-      for(const v of [0,1])sewnPath(Array.from({length:85},(_,j)=>bindCup(side,j/84,v,.023)),.006,binding);
+      for(const v of [0,1])sewnPath(Array.from({length:97},(_,j)=>bindCup(side,j/96,v,.0205)),.0045,binding);
       sewnPath(Array.from({length:55},(_,j)=>{const v=j/54;return bindCup(side,.54+.12*v,v,.021);}),.0015,binding);
       sewnPath(Array.from({length:45},(_,j)=>bindCup(side,1,j/44,.023)),.003,binding);
       for(const v of [0,1])sewnPath(Array.from({length:55},(_,j)=>{const u=j/54,theta=side*(1.50+u*1.35),y=(1-u)*(1.68+v*.3023)+u*(1.58+v*.23);return bindTheta(theta,y,.023);}),.004,binding);
     }
     for(const v of [.09,.23])sewnPath(Array.from({length:145},(_,j)=>{const theta=j/144*Math.PI*2;return bindTheta(theta,bandY(theta,v),.020);}),.0012,thread);
-    for(const{side,curve}of strapCurves)for(const edge of [-1,1])sewnPath(Array.from({length:121},(_,j)=>{const p=curve.getPoint(j/120);p.x+=side*edge*.037;return bindStrap(p,.018);}),.002,binding);
+    for(const side of[-1,1])for(const edge of [-1,1])sewnPath(Array.from({length:161},(_,j)=>strapBinding(side,edge*.037,j/160,.018)),.0017,binding);
     const stitchBindings=[];
     function stitches(count,mapper){for(let j=0;j<count;j++){const a=(j+.22)/count,b=(j+.77)/count;stitchBindings.push([mapper(a),mapper(b)]);}}
     for(const side of [-1,1]){
       for(const u of [.528,.559])stitches(76,v=>bindCup(side,u+.12*v,v,.022));
       stitches(106,u=>bindCup(side,u,.018,.023));
     }
-    for(const{side,curve}of strapCurves)for(const edge of [-1,1])stitches(112,v=>{const p=curve.getPoint(.055+v*.945);p.x+=side*edge*.026;return bindStrap(p,.020);});
+    for(const side of[-1,1])for(const edge of [-1,1])stitches(142,v=>strapBinding(side,edge*.026,.09+v*.90,.021));
     const stitchMesh=new THREE.InstancedMesh(new THREE.CylinderGeometry(.00075,.00075,1,5,1),thread,stitchBindings.length);
     stitchMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);stitchMesh.frustumCulled=false;model.add(stitchMesh);
     const stitchMatrix=new THREE.Matrix4(),stitchRotation=new THREE.Quaternion(),stitchScale=new THREE.Vector3(1,1,1),stitchA=new THREE.Vector3(),stitchB=new THREE.Vector3(),stitchAxis=new THREE.Vector3(0,1,0);
     const fittings=[];
     for(const side of [-1,1]){const hardware=new THREE.Group(),metal=new THREE.MeshStandardMaterial({color:0x4a1824,metalness:.45,roughness:.35});
-      for(const[w,h,x,y]of [[.088,.010,0,.032],[.088,.010,0,-.032],[.010,.064,-.039,0],[.010,.064,.039,0],[.068,.009,0,0]]){const bar=new THREE.Mesh(new RoundedBoxGeometry(w,h,.010,2,.003),metal);bar.position.set(x,y,0);hardware.add(bar);}model.add(hardware);fittings.push({hardware,binding:bindPoint(new THREE.Vector3(side*.74,2.65,surfaceZ(side*.74,2.65,true)),.032)});
+      for(const[w,h,x,y]of [[.088,.010,0,.032],[.088,.010,0,-.032],[.010,.064,-.039,0],[.010,.064,.039,0],[.068,.009,0,0]]){const bar=new THREE.Mesh(new RoundedBoxGeometry(w,h,.010,2,.003),metal);bar.position.set(x,y,0);hardware.add(bar);}model.add(hardware);fittings.push({hardware,binding:strapBinding(side,0,.155,.030)});
     }
 
-    // A small articulated silicone finger is a neutral contact probe.
+    // A rounded silicone hand approaches with the index finger. Its wrist
+    // continues out of the view, so the contact probe has no exposed cut end.
     const finger=new THREE.Group(),fingerMaterial=silicone.clone();fingerMaterial.color.setHex(0xc7997b);fingerMaterial.vertexColors=false;fingerMaterial.onBeforeCompile=silicone.onBeforeCompile;fingerMaterial.customProgramCacheKey=silicone.customProgramCacheKey;
     const fingerProfile=[[0,0,.001],[.018,.001,.023],[.042,.002,.034],[.085,.004,.035],[.12,.007,.032],[.16,.009,.031],[.18,.012,.034],[.225,.017,.033],[.26,.022,.030],[.29,.027,.030],[.33,.035,.036],[.39,.048,.041]],fingerSlopes=profileSlopes(fingerProfile),fingerPoints=[],fingerUV=[],fingerFaces=[];
     for(let r=0;r<=76;r++){const z=r/76*.39,[cx,radius]=profileAt(fingerProfile,fingerSlopes,z),crease=.0015*(Math.exp(-(((z-.15)/.006)**2))+Math.exp(-(((z-.27)/.006)**2)));
       for(let c=0;c<=36;c++){const t=c/36*Math.PI*2,k=r*37+c;fingerPoints.push(cx+Math.sin(t)*(radius-crease),Math.cos(t)*(radius-crease)*.92,z);fingerUV.push(c/36,r/76);if(r<76&&c<36)fingerFaces.push(k,k+37,k+1,k+1,k+37,k+38);}}
-    const fingerGeometry=new THREE.BufferGeometry();fingerGeometry.setAttribute('position',new THREE.Float32BufferAttribute(fingerPoints,3));fingerGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(fingerUV,2));fingerGeometry.setIndex(fingerFaces);fingerGeometry.computeVertexNormals();fingerGeometry.setAttribute('skinPosition',fingerGeometry.attributes.position);fingerGeometry.setAttribute('skinNormal',fingerGeometry.attributes.normal);const digit=new THREE.Mesh(fingerGeometry,fingerMaterial);digit.castShadow=true;digit.receiveShadow=true;finger.add(digit);
-    const nail=new THREE.Mesh(new RoundedBoxGeometry(.040,.006,.057,3,.005),new THREE.MeshPhysicalMaterial({color:0xe2c3b1,roughness:.36,clearcoat:.22}));nail.position.set(0,.032,.057);nail.castShadow=true;finger.add(nail);finger.visible=false;scene.add(finger);
+    const fingerGeometry=new THREE.BufferGeometry();fingerGeometry.setAttribute('position',new THREE.Float32BufferAttribute(fingerPoints,3));fingerGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(fingerUV,2));fingerGeometry.setIndex(fingerFaces);fingerGeometry.computeVertexNormals();
+    function handSkin(geometry){geometry.setAttribute('skinPosition',geometry.attributes.position);geometry.setAttribute('skinNormal',geometry.attributes.normal);const mesh=new THREE.Mesh(geometry,fingerMaterial);mesh.castShadow=true;mesh.receiveShadow=true;finger.add(mesh);return mesh;}
+    const digit=handSkin(fingerGeometry);
+    function ellipsoidDistance(x,y,z,cx,cy,cz,rx,ry,rz){const a=x-cx,b=y-cy,c=z-cz,k0=Math.sqrt((a/rx)**2+(b/ry)**2+(c/rz)**2),k1=Math.sqrt((a/(rx*rx))**2+(b/(ry*ry))**2+(c/(rz*rz))**2);return k1>1e-7?k0*(k0-1)/k1:-Math.min(rx,ry,rz);}
+    function handDistance(x,y,z){let d=ellipsoidDistance(x,y,z,-.102,-.005,.535,.164,.064,.187);d=smoothUnion(d,ellipsoidDistance(x,y,z,-.22,-.045,.53,.075,.075,.12),.035);d=smoothUnion(d,ellipsoidDistance(x,y,z,-.19,-.098,.44,.066,.071,.10),.022);
+      for(const[cx,cz,rx]of[[-.065,.357,.034],[-.145,.387,.032],[-.215,.431,.028]]){d=smoothUnion(d,ellipsoidDistance(x,y,z,cx,-.025,cz,rx,.066,.115),.025);d=smoothUnion(d,ellipsoidDistance(x,y,z,cx,-.108,cz+.059,rx,.092,.037),.020);}
+      const forearm=THREE.MathUtils.clamp(z-.76,0,1),w=.090+.045*forearm,h=.056+.034*forearm,dz=Math.min(0,z-.72),wrist=(Math.sqrt(((x+.105)/w)**2+((y+.004)/h)**2+(dz/.11)**2)-1)*h;d=smoothUnion(d,wrist,.028);
+      d=smoothUnion(d,ellipsoidDistance(x,y,z,.046,.001,.382,.049,.040,.073),.025);return d;}
+    const handResolution=80,handIso=new MarchingCubes(handResolution,fingerMaterial,false,false,60000);handIso.isolation=0;
+    const handMin=new THREE.Vector3(-.33,-.23,.21),handExtent=new THREE.Vector3(.47,.34,1.31);
+    for(let z=0;z<handResolution;z++)for(let y=0;y<handResolution;y++)for(let x=0;x<handResolution;x++){const wx=handMin.x+x/handResolution*handExtent.x,wy=handMin.y+y/handResolution*handExtent.y,wz=handMin.z+z/handResolution*handExtent.z;handIso.field[x+y*handResolution+z*handResolution*handResolution]=-handDistance(wx,wy,wz);}
+    handIso.update();const handPositions=handIso.geometry.attributes.position.array.slice(0,handIso.count*3);for(let i=0;i<handPositions.length;i+=3){handPositions[i]=handMin.x+(handPositions[i]+1)*.5*handExtent.x;handPositions[i+1]=handMin.y+(handPositions[i+1]+1)*.5*handExtent.y;handPositions[i+2]=handMin.z+(handPositions[i+2]+1)*.5*handExtent.z;}
+    const handRaw=new THREE.BufferGeometry();handRaw.setAttribute('position',new THREE.BufferAttribute(handPositions,3));const handGeometry=mergeVertices(handRaw,.00002);handRaw.dispose();handIso.geometry.dispose();handGeometry.computeVertexNormals();handSkin(handGeometry);
+    const nailPoints=[],nailFaces=[];for(let r=0;r<=16;r++)for(let c=0;c<=20;c++){const v=r/16,u=c/20,angle=(u-.5)*1.4,z=.023+v*.074,[cx,radius]=profileAt(fingerProfile,fingerSlopes,z),edge=Math.sin(Math.PI*v)**.35,x=cx+Math.sin(angle)*radius*.82*edge,y=Math.cos(angle*.82)*radius*.92+.0012;nailPoints.push(x,y,z);const k=r*21+c;if(r<16&&c<20)nailFaces.push(k,k+1,k+21,k+1,k+22,k+21);}
+    const nailGeometry=new THREE.BufferGeometry();nailGeometry.setAttribute('position',new THREE.Float32BufferAttribute(nailPoints,3));nailGeometry.setIndex(nailFaces);nailGeometry.computeVertexNormals();const nail=new THREE.Mesh(nailGeometry,new THREE.MeshPhysicalMaterial({color:0xdcc3b6,roughness:.31,clearcoat:.30,clearcoatRoughness:.25,side:THREE.DoubleSide}));nail.castShadow=true;finger.add(nail);finger.visible=false;scene.add(finger);
     const fingerDirection=new THREE.Vector3(),cameraRight=new THREE.Vector3(),zAxis=new THREE.Vector3(0,0,1);
     const bodySurface={mesh:body,pos,prev,rest,mass:inv,soft};
+
+    // The first HDR attachment stores the complete shading; the second stores
+    // only skin diffuse. Cloth writes zero to that attachment and still occludes
+    // skin. Diffusion is restricted by depth and coverage, never by a full-frame
+    // blur. Specular reflection, pores and textile detail stay in the sharp pass.
+    const opticalEnabled=renderer.extensions.has('EXT_color_buffer_float');
+    const hdrTarget=new THREE.WebGLRenderTarget(1,1,{count:2,type:THREE.HalfFloatType,samples:Math.min(4,renderer.capabilities.maxSamples),depthTexture:new THREE.DepthTexture(1,1,THREE.UnsignedIntType)});
+    const normalTarget=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:Math.min(4,renderer.capabilities.maxSamples)});
+    const diffusionX=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,depthBuffer:false});
+    const diffusionY=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,depthBuffer:false});
+    const normalMaterial=new THREE.MeshNormalMaterial({side:THREE.DoubleSide});
+    if(opticalEnabled){const materials=new Set();scene.traverse(o=>{if(o.isMesh)materials.add(o.material);});for(const material of materials){const original=material.onBeforeCompile,originalKey=material.customProgramCacheKey,isSkin=material===silicone||material===fingerMaterial;material.onBeforeCompile=shader=>{original.call(material,shader);shader.fragmentShader='layout(location=1) out highp vec4 skinDiffuse;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>','#include <opaque_fragment>\nskinDiffuse='+ (isSkin?'vec4(totalDiffuse,1.0)':'vec4(0.0)')+';');};material.customProgramCacheKey=()=>originalKey.call(material)+(isSkin?'|skin-mrt':'|occluding-mrt');}}
+    const postScene=new THREE.Scene(),postCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,1),postSize=new THREE.Vector2();
+    const postVertex=/* glsl */`varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`;
+    const blurUniforms={tDiffuse:{value:hdrTarget.textures[1]},tDepth:{value:hdrTarget.depthTexture},direction:{value:new THREE.Vector2(1,0)},viewport:{value:postSize},cameraNear:{value:camera.near},cameraFar:{value:camera.far},focalLength:{value:camera.projectionMatrix.elements[5]}};
+    const diffusionMaterial=new THREE.ShaderMaterial({vertexShader:postVertex,toneMapped:false,depthTest:false,depthWrite:false,blending:THREE.NoBlending,uniforms:blurUniforms,fragmentShader:/* glsl */`
+      #include <packing>
+      varying vec2 vUv;
+      uniform sampler2D tDiffuse,tDepth;
+      uniform vec2 direction,viewport;
+      uniform float cameraNear,cameraFar,focalLength;
+      float viewDepth(vec2 uv){return perspectiveDepthToViewZ(texture2D(tDepth,uv).r,cameraNear,cameraFar);}
+      void main(){
+        vec4 center=texture2D(tDiffuse,vUv);
+        if(center.a<.001){gl_FragColor=vec4(0.0);return;}
+        float z=viewDepth(vUv),pixels=.009*focalLength*.5*viewport.y/max(-z,.01);
+        vec3 sum=vec3(0.0),weightSum=vec3(0.0);
+        for(int j=-6;j<=6;j++){
+          float t=float(j)/6.0;
+          vec2 uv=vUv+direction/viewport*pixels*t;
+          vec4 sampleColor=texture2D(tDiffuse,uv);
+          vec3 widths=vec3(.48,.24,.15);
+          vec3 weights=exp(-.5*vec3(t*t)/(widths*widths));
+          weights*=sampleColor.a*exp(-abs(viewDepth(uv)-z)/.018);
+          sum+=sampleColor.rgb/max(sampleColor.a,.001)*weights;weightSum+=weights;
+        }
+        gl_FragColor=vec4(sum/max(weightSum,vec3(.0001))*center.a,center.a);
+      }
+    `});
+    const aoKernel=Array.from({length:16},(_,i)=>{const angle=i*2.39996323,r=.018+.12*((i+.5)/16)**1.25,z=.18+.55*hash(i+66,122);return new THREE.Vector3(Math.cos(angle)*Math.sqrt(1-z*z),Math.sin(angle)*Math.sqrt(1-z*z),z).multiplyScalar(r);});
+    const postUniforms={tBeauty:{value:hdrTarget.textures[0]},tSkin:{value:hdrTarget.textures[1]},tDiffusion:{value:diffusionY.texture},tDepth:{value:hdrTarget.depthTexture},tNormal:{value:normalTarget.texture},projection:{value:camera.projectionMatrix},inverseProjection:{value:camera.projectionMatrixInverse},kernel:{value:aoKernel},diffusionStrength:{value:.85},occlusionStrength:{value:.40}};
+    const compositeMaterial=new THREE.ShaderMaterial({vertexShader:postVertex,depthTest:false,depthWrite:false,blending:THREE.NoBlending,premultipliedAlpha:true,dithering:true,uniforms:postUniforms,fragmentShader:/* glsl */`
+      #include <common>
+      #include <dithering_pars_fragment>
+      varying vec2 vUv;
+      uniform sampler2D tBeauty,tSkin,tDiffusion,tDepth,tNormal;
+      uniform mat4 projection,inverseProjection;
+      uniform vec3 kernel[16];
+      uniform float diffusionStrength,occlusionStrength;
+      vec3 viewPoint(vec2 uv){vec4 p=inverseProjection*vec4(uv*2.0-1.0,texture2D(tDepth,uv).r*2.0-1.0,1.0);return p.xyz/p.w;}
+      void main(){
+        vec4 beauty=texture2D(tBeauty,vUv);
+        if(beauty.a<.001){gl_FragColor=vec4(0.0);return;}
+        vec3 skin=texture2D(tSkin,vUv).rgb,scattered=texture2D(tDiffusion,vUv).rgb;
+        vec3 p=viewPoint(vUv),n=normalize(texture2D(tNormal,vUv).xyz*2.0-1.0);
+        vec3 tangent=normalize(cross(n,vec3(.13,.91,.27))),bitangent=cross(n,tangent);
+        mat3 basis=mat3(tangent,bitangent,n);
+        float occlusion=0.0,weights=0.0;
+        for(int j=0;j<16;j++){
+          vec3 samplePoint=p+n*.002+basis*kernel[j];
+          vec4 projected=projection*vec4(samplePoint,1.0);
+          vec2 uv=projected.xy/projected.w*.5+.5;
+          if(uv.x<0.0||uv.x>1.0||uv.y<0.0||uv.y>1.0)continue;
+          vec3 other=viewPoint(uv);
+          float weight=1.0-smoothstep(0.0,.17,abs(other.z-p.z));
+          occlusion+=step(samplePoint.z+.001,other.z)*weight;weights+=weight;
+        }
+        float ao=1.0-occlusionStrength*occlusion/max(weights,1.0);
+        vec3 color=max(vec3(0.0),beauty.rgb+(scattered-skin)*diffusionStrength);
+        color*=ao;
+        gl_FragColor=vec4(color/max(beauty.a,.001),beauty.a);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
+        #include <dithering_fragment>
+        #include <premultiplied_alpha_fragment>
+      }
+    `});
+    const postQuad=new THREE.Mesh(new THREE.PlaneGeometry(2,2),diffusionMaterial);postQuad.frustumCulled=false;postScene.add(postQuad);
+    function renderScene(){
+      if(!opticalEnabled){renderer.render(scene,camera);return;}
+      renderer.getDrawingBufferSize(postSize);const w=postSize.x,h=postSize.y;
+      if(hdrTarget.width!==w||hdrTarget.height!==h)for(const target of[hdrTarget,normalTarget,diffusionX,diffusionY])target.setSize(w,h);
+      blurUniforms.focalLength.value=camera.projectionMatrix.elements[5];
+      const updateShadows=renderer.shadowMap.autoUpdate;
+      renderer.setRenderTarget(hdrTarget);renderer.render(scene,camera);
+      renderer.shadowMap.autoUpdate=false;scene.overrideMaterial=normalMaterial;
+      renderer.setRenderTarget(normalTarget);renderer.render(scene,camera);scene.overrideMaterial=null;
+      postQuad.material=diffusionMaterial;blurUniforms.tDiffuse.value=hdrTarget.textures[1];blurUniforms.direction.value.set(1,0);
+      renderer.setRenderTarget(diffusionX);renderer.render(postScene,postCamera);
+      blurUniforms.tDiffuse.value=diffusionX.texture;blurUniforms.direction.value.set(0,1);
+      renderer.setRenderTarget(diffusionY);renderer.render(postScene,postCamera);
+      postQuad.material=compositeMaterial;renderer.setRenderTarget(null);renderer.render(postScene,postCamera);
+      renderer.shadowMap.autoUpdate=updateShadows;
+    }
     const tangent=new THREE.Vector3(),sideVector=new THREE.Vector3(),normalVector=new THREE.Vector3(),pointVector=new THREE.Vector3(),nextPoint=new THREE.Vector3();
     function updateGeometry(){refreshDisplacement();
+      if(appearanceContact){const c=appearanceContact;contactAppearance.position.value.copy(c.point).sub(c.initialDisplacement);contactAppearance.amount.value=THREE.MathUtils.clamp(c.initialDisplacement.clone().sub(sampleDisplacement(c.probeBinding,bindingDelta)).dot(c.normal)*16,0,.8);}
       const skinPositions=bodyGeometry.attributes.position.array,skinNormals=bodyGeometry.attributes.normal.array;
-      for(let i=0;i<skinBindings.length;i++){sampleDisplacement(skinBindings[i],bindingDelta);const p=i*3;skinPositions[p]=skinRest[p]+bindingDelta.x;skinPositions[p+1]=skinRest[p+1]+bindingDelta.y;skinPositions[p+2]=skinRest[p+2]+bindingDelta.z;normalVector.fromArray(skinRestNormals,p);deformNormal(skinBindings[i],normalVector,normalVector).toArray(skinNormals,p);}
+      for(const i of dynamicSkin){sampleDisplacement(skinBindings[i],bindingDelta);const p=i*3;skinPositions[p]=skinRest[p]+bindingDelta.x;skinPositions[p+1]=skinRest[p+1]+bindingDelta.y;skinPositions[p+2]=skinRest[p+2]+bindingDelta.z;normalVector.fromArray(skinRestNormals,p);deformNormal(skinBindings[i],normalVector,normalVector).toArray(skinNormals,p);}
       bodyGeometry.attributes.position.needsUpdate=true;bodyGeometry.attributes.normal.needsUpdate=true;
       for(const part of clothParts){for(let i=0;i<part.bindings.length;i++){readBinding(part.bindings[i]).toArray(part.points,i*3);}part.geometry.attributes.position.needsUpdate=true;part.geometry.computeVertexNormals();}
       for(const item of tubes){const{path,centers,normals,points,radius}=item;for(let i=0;i<path.length;i++){readBinding(path[i],pointVector,normalVector);pointVector.toArray(centers,i*3);normalVector.toArray(normals,i*3);}
@@ -421,10 +544,10 @@
       return{id,surface:bodySurface,point,normal,ids,weights,original,nearest,anchor:new THREE.Vector3().fromArray(pos,nearest*3),depth,level:0,lift:0,label,probeBinding,initialDisplacement};
     }
 
-    function updateFinger(contact,lift){const current=sampleDisplacement(contact.probeBinding,new THREE.Vector3()).sub(contact.initialDisplacement).add(contact.point).add(root);finger.position.copy(current).addScaledVector(contact.normal,.002+lift);cameraRight.setFromMatrixColumn(camera.matrixWorld,0);fingerDirection.copy(contact.normal).multiplyScalar(.86).addScaledVector(cameraRight,.4);fingerDirection.y-=.20;fingerDirection.normalize();finger.quaternion.setFromUnitVectors(zAxis,fingerDirection);finger.visible=true;}
+    function updateFinger(contact,lift){const current=sampleDisplacement(contact.probeBinding,new THREE.Vector3()).sub(contact.initialDisplacement).add(contact.point).add(root);finger.position.copy(current).addScaledVector(contact.normal,.002+lift);cameraRight.setFromMatrixColumn(camera.matrixWorld,0);fingerDirection.copy(contact.normal).multiplyScalar(.52).addScaledVector(cameraRight,.86);fingerDirection.y-=.20;fingerDirection.normalize();finger.quaternion.setFromUnitVectors(zAxis,fingerDirection);finger.visible=true;}
     function finishTouch(){if(!touchState)return;const id=touchState.id;withdrawal={...touchState,lift:0};touchState=null;awakeSteps=300;controls.enabled=!moving;canvas.classList.remove('holding');try{if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);}catch{}}
     canvas.addEventListener('pointerdown',event=>{if(!window.fitStudyReady||mode==='camera'||event.button!==0||moving||touchState)return;
-      if(mode==='touch'){const found=exposedHit(event);if(!found)return;const contact=makeContact(found.hit,found.surface,event.pointerId);if(!contact)return;event.preventDefault();event.stopImmediatePropagation();motion=false;document.getElementById('motion').setAttribute('aria-pressed','false');touchState=contact;withdrawal=null;controls.enabled=false;canvas.classList.add('holding');document.getElementById('hint').textContent=tissueLabel(contact.surface,contact.nearest)+' · hold to press · release to recover';canvas.setPointerCapture(event.pointerId);updateFinger(contact,0);return;}
+      if(mode==='touch'){const found=exposedHit(event);if(!found)return;const contact=makeContact(found.hit,found.surface,event.pointerId);if(!contact)return;event.preventDefault();event.stopImmediatePropagation();motion=false;document.getElementById('motion').setAttribute('aria-pressed','false');touchState=contact;appearanceContact=contact;withdrawal=null;controls.enabled=false;canvas.classList.add('holding');document.getElementById('hint').textContent=tissueLabel(contact.surface,contact.nearest)+' · hold to press · release to recover';canvas.setPointerCapture(event.pointerId);updateFinger(contact,0);return;}
       const hit=pick(event);if(!hit)return;event.preventDefault();event.stopImmediatePropagation();motion=false;document.getElementById('motion').setAttribute('aria-pressed','false');
       const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()),hit.point);moving={id:event.pointerId,plane,point:hit.point.clone(),start:root.clone()};rootTarget.copy(root);controls.enabled=false;canvas.classList.add('holding');canvas.setPointerCapture(event.pointerId);
     },{capture:true});
@@ -440,7 +563,7 @@
     document.getElementById('support').addEventListener('input',e=>{support=+e.target.value/100;awakeSteps=300;document.getElementById('supportValue').value=e.target.value;});
     document.getElementById('pressure').addEventListener('input',e=>{pressure=+e.target.value/100;document.getElementById('pressureValue').value=e.target.value;});
     const settled=new Float64Array(N*3);
-    function reset(){stopContact();motion=false;support=.6;pressure=.55;document.getElementById('support').value=60;document.getElementById('supportValue').value=60;document.getElementById('pressure').value=55;document.getElementById('pressureValue').value=55;document.getElementById('motion').setAttribute('aria-pressed','false');root.set(0,0,0);rootVelocity.set(0,0,0);rootTarget.set(0,0,0);model.position.set(0,0,0);pos.set(settled);prev.set(settled);time=0;accumulator=0;setMode('touch');awakeSteps=0;frame();updateGeometry();}
+    function reset(){stopContact();appearanceContact=null;contactAppearance.amount.value=0;motion=false;support=.6;pressure=.55;document.getElementById('support').value=60;document.getElementById('supportValue').value=60;document.getElementById('pressure').value=55;document.getElementById('pressureValue').value=55;document.getElementById('motion').setAttribute('aria-pressed','false');root.set(0,0,0);rootVelocity.set(0,0,0);rootTarget.set(0,0,0);model.position.set(0,0,0);pos.set(settled);prev.set(settled);time=0;accumulator=0;setMode('touch');awakeSteps=0;frame();updateGeometry();}
     function hideUI(value){document.body.classList.toggle('clean',value===undefined?!document.body.classList.contains('clean'):value);}
     document.getElementById('reset').addEventListener('click',reset);document.getElementById('hide').addEventListener('click',()=>hideUI());
     window.addEventListener('keydown',event=>{if(event.metaKey||event.ctrlKey||event.altKey||event.repeat)return;if(event.code==='KeyH')hideUI();if(event.code==='KeyR'&&window.fitStudyReady)reset();if(event.code==='Escape'){stopContact();hideUI(false);}});
@@ -449,10 +572,10 @@
 
     // Settle gravity and garment support before the first displayed frame.
     settling=true;for(let batch=0;batch<8;batch++){for(let i=0;i<30;i++)simulate();await new Promise(resolve=>setTimeout(resolve,0));}settling=false;time=0;settled.set(pos);prev.set(pos);updateGeometry();
-    renderer.render(scene,camera);window.fitStudyReady=true;loader.classList.add('done');setTimeout(()=>loader.remove(),650);
+    renderScene();window.fitStudyReady=true;loader.classList.add('done');setTimeout(()=>loader.remove(),650);
     function animate(now){requestAnimationFrame(animate);if(document.hidden){lastTime=0;return;}const elapsed=lastTime?Math.min(.05,(now-lastTime)/1000):DT;lastTime=now;let steps=0;
       if(moving||touchState||motion||awakeSteps>0){accumulator=Math.min(accumulator+elapsed,DT*6);while(accumulator>=DT&&steps<6){simulate();accumulator-=DT;steps++;if(awakeSteps>0)awakeSteps--;}}else accumulator=0;
-      if(steps){updateGeometry();needsRender=true;}if(!moving&&!touchState&&controls.update())needsRender=true;if(needsRender){renderer.render(scene,camera);needsRender=false;}}
+      if(steps){updateGeometry();needsRender=true;}if(!moving&&!touchState&&controls.update())needsRender=true;if(needsRender){renderScene();needsRender=false;}}
     requestAnimationFrame(animate);
     // Read-only hooks used to verify stability and garment attachment.
     window.fitStudy=Object.freeze({inspect:()=>({vertices:N,clothVertices:clothParts.reduce((a,p)=>a+p.bindings.length,0),mode,moving:Boolean(moving),touching:Boolean(touchState),site:touchState?touchState.label:null,contact:touchState?{depth:touchState.depth,nearest:touchState.nearest,normal:touchState.normal.toArray(),original:touchState.anchor.toArray(),current:Array.from(touchState.surface.pos.slice(touchState.nearest*3,touchState.nearest*3+3))}:null,motion,support,pressure,root:root.toArray(),camera:camera.position.toArray(),positions:Array.from(pos),armPositions:[Array.from(pos),Array.from(pos)],tetrahedra:V.length,volumeQuality:volumeQuality(),settled:Array.from(settled),volume:volume(),restVolume}),project:(x,y,z)=>{const p=new THREE.Vector3(x,y,z).add(root).project(camera),r=canvas.getBoundingClientRect();return{x:r.left+(p.x+1)*r.width/2,y:r.top+(1-p.y)*r.height/2};}});
