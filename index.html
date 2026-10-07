@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#252528">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23252528'/%3E%3Cpath d='M5 20Q9 9 16 19Q23 9 27 20L25 25H7Z' fill='%23bb263e'/%3E%3C/svg%3E">
+  <title>Form — Bra Fit Study</title>
+  <style>
+    :root{color-scheme:dark;--muted:#c1b4b3;--accent:#edb2b8}*{box-sizing:border-box}
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#252528}
+    body{font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f3e9e7;background:radial-gradient(ellipse at 47% 37%,#414144 0%,#303034 53%,#1b1b20 100%)}
+    #stage{position:fixed;inset:0;width:100%;height:100%;touch-action:none;outline:none}#stage.ready{cursor:grab}#stage.holding{cursor:grabbing}#stage.orbit{cursor:move}
+    .label{position:fixed;top:max(25px,env(safe-area-inset-top));left:27px;pointer-events:none;text-shadow:0 1px 8px #0004}
+    .label span{font-size:10px;letter-spacing:.2em;color:#eee2df}.label small{display:block;font-size:10px;color:#b7a8a6;margin-top:8px}
+    #ui{position:fixed;bottom:max(20px,env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);max-width:calc(100% - 24px);width:max-content}
+    #hint{margin:0 0 12px;text-align:center;font-size:11px;color:#daccc8;text-shadow:0 1px 10px #0008}
+    .toolbar{display:flex;align-items:center;gap:14px;border-radius:13px;border:1px solid #ffffff15;background:#242024ed;backdrop-filter:blur(15px);box-shadow:0 5px 30px #0004;padding:9px 12px}
+    .modes{display:flex;gap:2px;border-radius:9px;background:#171518;padding:3px}
+    button{font:inherit;font-size:11px;white-space:nowrap;border:0;border-radius:7px;padding:9px 11px;color:#c1b4b3;background:transparent;cursor:pointer}
+    button:hover{color:white;background:#ffffff0b}button[aria-pressed="true"]{color:#fff1ef;background:#5b333c}
+    button:focus-visible,input:focus-visible{outline:1px solid var(--accent);outline-offset:3px}
+    .setting{display:flex;align-items:center;gap:9px;font-size:10px;color:var(--muted)}.setting output{display:inline-block;min-width:20px;margin-left:5px;color:#f0bec3;font-variant-numeric:tabular-nums}
+    input[type=range]{appearance:none;margin:0;width:76px;height:3px;background:#6b4850;border-radius:3px;cursor:ew-resize}
+    input[type=range]::-webkit-slider-thumb{appearance:none;width:11px;height:11px;border-radius:50%;background:var(--accent)}input[type=range]::-moz-range-thumb{width:11px;height:11px;border:0;border-radius:50%;background:var(--accent)}
+    .divider{height:24px;width:1px;background:#ffffff16}.icon{display:grid;place-items:center;padding:7px;width:31px;height:31px}.icon svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+    body.clean .interface{display:none!important}#loading{position:fixed;inset:0;z-index:5;display:grid;place-content:center;gap:15px;text-align:center;background:#252528;font-size:12px;color:#c8b8b7;transition:opacity .4s}
+    #loading.done{opacity:0;pointer-events:none}.spinner{width:23px;height:23px;margin:auto;border:1px solid #ffffff18;border-top-color:#deb0b7;border-radius:50%;animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+    #loading.error .spinner{display:none}#loading.error{padding:28px;line-height:1.7}
+    @media(max-width:780px){.label{top:18px;left:18px}#ui{width:calc(100% - 24px);bottom:max(12px,env(safe-area-inset-bottom))}.toolbar{gap:9px;flex-wrap:wrap;justify-content:space-between}.divider{display:none}.modes{flex:1;justify-content:center}button{font-size:10px;padding:9px 10px}.setting{gap:6px}input[type=range]{width:64px}#hint{font-size:10px}}
+  </style>
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head>
+<body>
+  <canvas id="stage" tabindex="0" aria-label="Adult silicone display mannequin wearing an opaque red bra. Touch mode presses exposed silicone with a fingertip. Move mode moves the whole mannequin. Camera mode rotates the view. H hides controls; R resets."></canvas>
+  <div class="label interface"><span>FORM / 01</span><small>Bra fit &amp; support study</small></div>
+  <div id="ui" class="interface">
+    <p id="hint">Hold on exposed silicone to press · release to recover · right-drag to orbit</p>
+    <div class="toolbar" role="toolbar" aria-label="Fit study controls">
+      <div class="modes" role="group" aria-label="View and motion">
+        <button id="touch" aria-pressed="true" title="Press exposed silicone with the fingertip">Touch</button>
+        <button id="move" aria-pressed="false" title="Move the whole mannequin to observe material response">Move</button>
+        <button id="motion" aria-pressed="false" title="Gentle body motion to compare garment support">Motion</button>
+        <button id="cameraMode" aria-pressed="false" title="Drag to orbit; scroll or pinch to zoom">Camera</button>
+      </div>
+      <span class="divider"></span>
+      <div class="setting"><label for="support">Support<output id="supportValue">60</output></label><input id="support" type="range" min="0" max="100" value="60" aria-label="Garment support"></div>
+      <div class="setting"><label for="pressure">Pressure<output id="pressureValue">55</output></label><input id="pressure" type="range" min="10" max="100" value="55" aria-label="Fingertip pressure"></div>
+      <button id="reset" class="icon" title="Reset model and view (R)" aria-label="Reset model and view"><svg viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 .8 6M4 4v6h6"/></svg></button>
+      <button id="hide" class="icon" title="Hide interface (H). H or Escape restores it." aria-label="Hide interface"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="m3 3 18 18"/></svg></button>
+    </div>
+  </div>
+  <div id="loading" role="status"><div class="spinner"></div><span id="loadingText">Preparing the fit study…</span></div>
+  <script>
+    window.addEventListener('error',()=>{if(!window.fitStudyReady){document.getElementById('loading').classList.add('error');document.getElementById('loadingText').textContent='Unable to start the scene. Check your internet connection and WebGL 2 support.';}});
+    setTimeout(()=>{if(!window.fitStudyReady)document.getElementById('loadingText').textContent='Loading Three.js… CDN libraries require an internet connection.';},12000);
+  </script>
+  <script type="module">
+    import * as THREE from 'three';
+    import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+    import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
+    import {RectAreaLightUniformsLib} from 'three/addons/lights/RectAreaLightUniformsLib.js';
+
+    const canvas=document.getElementById('stage'),loader=document.getElementById('loading');
+    const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:'high-performance'});
+    renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.setSize(innerWidth,innerHeight);
+    renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.95;
+    renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    const scene=new THREE.Scene(),model=new THREE.Group();scene.add(model);let needsRender=true;
+    const camera=new THREE.PerspectiveCamera(29,innerWidth/innerHeight,.05,40);
+    const controls=new OrbitControls(camera,canvas);controls.target.set(0,2.19,.36);controls.enablePan=false;controls.enableDamping=true;controls.dampingFactor=.095;
+    controls.minPolarAngle=.72;controls.maxPolarAngle=Math.PI*.53;controls.rotateSpeed=.5;controls.zoomSpeed=.6;controls.minDistance=2.9;controls.maxDistance=7.5;
+    controls.mouseButtons.LEFT=null;controls.mouseButtons.MIDDLE=THREE.MOUSE.DOLLY;controls.mouseButtons.RIGHT=THREE.MOUSE.ROTATE;
+    controls.touches.ONE=null;controls.touches.TWO=THREE.TOUCH.DOLLY_ROTATE;
+    function frame(){controls.target.set(0,2.19,.36);const d=Math.max(3.75,2.45/(2*Math.tan(THREE.MathUtils.degToRad(29/2))*camera.aspect)+.4);camera.position.copy(controls.target).addScaledVector(new THREE.Vector3(0,.34,1).normalize(),d);controls.maxDistance=Math.max(7.5,d*1.25);controls.update();needsRender=true;}
+    frame();
+
+    // All light cards and surface textures are generated here, without external assets.
+    const studio=new THREE.Scene();studio.background=new THREE.Color(0x777579);
+    studio.add(new THREE.Mesh(new THREE.BoxGeometry(18,16,18),new THREE.MeshBasicMaterial({color:0x727173,side:THREE.BackSide})));
+    function panel(w,h,p,color,power){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({color:new THREE.Color(color).multiplyScalar(power),side:THREE.DoubleSide}));m.position.set(...p);m.lookAt(0,2,0);studio.add(m);}
+    panel(5,7,[-4,5,4],0xfff1e6,3);panel(3,6,[4,4,3],0xe0e7f1,2);panel(4,3,[0,7,-1],0xf4f2ef,2.3);panel(4,7,[0,2,-5],0x15151a,1);
+    const pmrem=new THREE.PMREMGenerator(renderer),env=pmrem.fromScene(studio,.07,.1,30);scene.environment=env.texture;scene.environmentIntensity=.36;pmrem.dispose();
+    studio.traverse(o=>{if(o.isMesh){o.geometry.dispose();o.material.dispose();}});
+    RectAreaLightUniformsLib.init();
+    const keyBox=new THREE.RectAreaLight(0xffeee1,5.3,4.5,5.5);keyBox.position.set(-3,5,4);keyBox.lookAt(0,2,0);scene.add(keyBox);
+    const fill=new THREE.RectAreaLight(0xe3e7ef,2.3,3,4);fill.position.set(3,3.8,3);fill.lookAt(0,2,0);scene.add(fill);
+    const rim=new THREE.RectAreaLight(0xcbd8eb,2,1.5,4);rim.position.set(3,3.5,-2.5);rim.lookAt(0,2,0);scene.add(rim);
+    const shadowLight=new THREE.DirectionalLight(0xfff0e4,1.45);shadowLight.position.set(-3.6,6,4.5);shadowLight.target.position.set(0,2,0);shadowLight.castShadow=true;
+    shadowLight.shadow.mapSize.set(2048,2048);Object.assign(shadowLight.shadow.camera,{left:-3,right:3,top:4,bottom:-2,near:.5,far:13});shadowLight.shadow.bias=-.0001;shadowLight.shadow.normalBias=.009;shadowLight.shadow.radius=4;scene.add(shadowLight,shadowLight.target);
+    scene.add(new THREE.HemisphereLight(0xeee4df,0x33303c,.22));
+
+    function proceduralTexture(kind){const c=document.createElement('canvas');c.width=c.height=512;const ctx=c.getContext('2d'),image=ctx.createImageData(512,512);let random=19;
+      for(let y=0;y<512;y++)for(let x=0;x<512;x++){const i=(y*512+x)*4;random=(Math.imul(random,1664525)+1013904223)>>>0;const noise=(random/4294967296-.5);
+        const value=kind==='skin'?128+noise*42+8*Math.sin(x*.47)*Math.sin(y*.39):128+noise*12+18*Math.sin(x*Math.PI*.5)+12*Math.sin(y*Math.PI*.5);
+        image.data[i]=image.data[i+1]=image.data[i+2]=value;image.data[i+3]=255;}
+      ctx.putImageData(image,0,0);const tex=new THREE.CanvasTexture(c);tex.wrapS=tex.wrapT=THREE.RepeatWrapping;tex.repeat.set(kind==='skin'?2.5:2,kind==='skin'?2:2);tex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());return tex;
+    }
+    const skinTexture=proceduralTexture('skin'),fabricTexture=proceduralTexture('fabric');
+    const silicone=new THREE.MeshPhysicalMaterial({color:0xba8c68,roughness:.44,metalness:0,clearcoat:.09,clearcoatRoughness:.5,bumpMap:skinTexture,bumpScale:.002,envMapIntensity:.4});
+    const fabric=new THREE.MeshPhysicalMaterial({color:0x870c23,roughness:.78,metalness:0,bumpMap:fabricTexture,bumpScale:.0025,sheen:.35,sheenColor:0x8c2034,sheenRoughness:.78,envMapIntensity:.35,side:THREE.DoubleSide});
+    const binding=new THREE.MeshStandardMaterial({color:0x87172d,roughness:.7,bumpMap:fabricTexture,bumpScale:.001});
+    const thread=new THREE.MeshStandardMaterial({color:0xb74756,roughness:.85});
+
+    // A shared closed surface is the deformable silicone volume. The back, neck and
+    // lower torso are attached to a rigid display core. No nipple geometry is present.
+    const sections=[[-.1,.74,.39],[.3,.70,.38],[.7,.63,.34],[1,.60,.32],[1.35,.67,.35],[1.60,.78,.39],[1.93,.88,.43],[2.23,.93,.42],[2.52,1.00,.40],[2.69,1.02,.37],[2.83,.82,.32],[3.02,.43,.27],[3.17,.27,.235],[3.65,.25,.23],[5,.25,.23]];
+    function profileSlopes(profile){return profile.map((a,i)=>[1,2].map(c=>{const p=profile[Math.max(0,i-1)],n=profile[Math.min(profile.length-1,i+1)],d0=i?(a[c]-p[c])/(a[0]-p[0]):(n[c]-a[c])/(n[0]-a[0]),d1=i<profile.length-1?(n[c]-a[c])/(n[0]-a[0]):d0;return d0*d1<=0?0:Math.sign(d0)*Math.min(Math.abs((d0+d1)*.5),3*Math.abs(d0),3*Math.abs(d1));}));}
+    function profileAt(profile,slopes,y){let j=0;while(j<profile.length-2&&y>profile[j+1][0])j++;const a=profile[j],b=profile[j+1],h=b[0]-a[0],t=THREE.MathUtils.clamp((y-a[0])/h,0,1),t2=t*t,t3=t2*t;return[1,2].map(c=>(2*t3-3*t2+1)*a[c]+(t3-2*t2+t)*h*slopes[j][c-1]+(-2*t3+3*t2)*b[c]+(t3-t2)*h*slopes[j+1][c-1]);}
+    const sectionSlopes=profileSlopes(sections);
+    const sectionPolynomial=new Float64Array((sections.length-1)*8);
+    for(let j=0;j<sections.length-1;j++)for(let c=1;c<=2;c++){const h=sections[j+1][0]-sections[j][0],a=sections[j][c],b=sections[j+1][c],m=h*sectionSlopes[j][c-1],n=h*sectionSlopes[j+1][c-1],p=j*8+(c-1)*4;sectionPolynomial[p]=a;sectionPolynomial[p+1]=m;sectionPolynomial[p+2]=-3*a-2*m+3*b-n;sectionPolynomial[p+3]=2*a+m-2*b+n;}
+    function section(y){return profileAt(sections,sectionSlopes,y);}
+    const ROWS=144,COLS=128,BASE=-.1,HEIGHT=5.1,N=(ROWS+1)*COLS+2;
+    const rest=new Float64Array(N*3),pos=new Float64Array(N*3),prev=new Float64Array(N*3),inv=new Float64Array(N),soft=new Float64Array(N),supportMask=new Float64Array(N);
+    const surface=new Float32Array(N*3),uv=new Float32Array(N*2),indices=[];
+    const sectionIndex=new Uint8Array(N);
+    function cupXY(side,u,v){const x=side*(.068+.865*u-.018*v+.012*Math.sin(Math.PI*u)*(1-v));const low=1.48-.17*Math.sin(Math.PI*u)+.19*u;const high=1.88+.72*Math.pow(u,.87)-.09*Math.pow(u,5);return[x,low+(high-low)*v];}
+    for(let row=0;row<=ROWS;row++){const y=BASE+row/ROWS*HEIGHT,[width,depth]=section(y);
+      for(let col=0;col<COLS;col++){const i=row*COLS+col,p=i*3,theta=col/COLS*Math.PI*2,front=Math.max(0,Math.cos(theta)),x=Math.sin(theta)*width;
+        const a=Math.exp(-(((x+.45)/.43)**2*1.8+((y-1.96)/.49)**2*1.15)),b=Math.exp(-(((x-.45)/.43)**2*1.8+((y-1.96)/.49)**2*1.15));
+        const upper=.015*Math.exp(-(((Math.abs(x)-.46)/.3)**2+((y-2.67)/.08)**2));
+        const sternum=.012*Math.exp(-((x/.12)**2+((y-2.55)/.25)**2));
+        rest[p]=x;rest[p+1]=y;rest[p+2]=Math.cos(theta)*depth+(.61*(a+b)+upper-sternum)*front**2;
+        let sj=0;while(sj<sections.length-2&&y>sections[sj+1][0])sj++;sectionIndex[i]=sj;
+        uv[i*2]=col/COLS;uv[i*2+1]=row/ROWS;
+        const abdominal=.46*Math.exp(-(((y-1.10)/.42)**2))*front**3,shoulder=.15*Math.exp(-(((Math.abs(x)-.85)/.28)**2+((y-2.59)/.27)**2))*front;
+        soft[i]=Math.min(1,((a+b)*front**4+abdominal+shoulder));inv[i]=(y>.58&&y<2.83&&Math.cos(theta)>.06)?Math.max(.025,soft[i]):0;
+        const u=THREE.MathUtils.clamp((Math.abs(x)-.06)/.86,0,1),bottom=1.48-.17*Math.sin(Math.PI*u)+.19*u,top=1.88+.72*u**.87-.09*u**5;
+        supportMask[i]=(y>bottom&&y<top&&Math.abs(x)<.94&&front>.1)?(.45+.55*Math.max(0,1-(y-bottom)/(top-bottom))):0;
+        if(row<ROWS){const next=row*COLS+(col+1)%COLS;indices.push(i,next,i+COLS,next,next+COLS,i+COLS);}
+      }}
+    const lower=(ROWS+1)*COLS,upper=lower+1;rest[lower*3+1]=BASE;rest[upper*3+1]=BASE+HEIGHT;
+    const activeNodes=Uint16Array.from(Array.from(inv.keys()).filter(i=>inv[i]>0));
+    for(let j=0;j<COLS;j++){indices.push(lower,(j+1)%COLS,j,upper,ROWS*COLS+j,ROWS*COLS+(j+1)%COLS);}
+    pos.set(rest);prev.set(rest);surface.set(rest);
+    const bodyGeometry=new THREE.BufferGeometry();bodyGeometry.setAttribute('position',new THREE.BufferAttribute(surface,3).setUsage(THREE.DynamicDrawUsage));bodyGeometry.setAttribute('uv',new THREE.BufferAttribute(uv,2));bodyGeometry.setIndex(indices);bodyGeometry.computeVertexNormals();
+    const body=new THREE.Mesh(bodyGeometry,silicone);body.castShadow=true;body.receiveShadow=true;body.frustumCulled=false;model.add(body);
+
+    // Sculpted arm cross-sections continue beyond the approved crop.
+    const armSurfaces=[];
+    function makeArm(side){const armRows=112,armCols=64,points=[],armUV=[],faces=[];
+      const profile=[[-1.8,1.58,.16],[-.2,1.48,.18],[.7,1.35,.20],[1.35,1.22,.235],[1.65,1.17,.245],[2.1,1.10,.275],[2.45,1.055,.31],[2.65,.975,.28],[2.78,.83,.16],[2.88,.60,.002]],slopes=profileSlopes(profile);
+      for(let r=0;r<=armRows;r++){const y=-1.8+r/armRows*4.7,[cx,radius]=profileAt(profile,slopes,y);
+        for(let c=0;c<=armCols;c++){const t=c/armCols*Math.PI*2;points.push(side*(cx+Math.sin(t)*radius),y,-.015+Math.cos(t)*radius*.9);armUV.push(c/armCols,r/armRows);
+          if(r<armRows&&c<armCols){const i=r*(armCols+1)+c;faces.push(i,i+1,i+armCols+1,i+1,i+armCols+2,i+armCols+1);}}}
+      const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(points,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(armUV,2));g.setIndex(side===1?faces:faces.flatMap((_,i)=>i%3===0?[faces[i],faces[i+2],faces[i+1]]:[]));g.computeVertexNormals();
+      const mesh=new THREE.Mesh(g,silicone);mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=false;model.add(mesh);
+      const armRest=Float64Array.from(points),armPos=Float64Array.from(points),armPrev=Float64Array.from(points),mass=new Float64Array(points.length/3),elastic=new Float64Array(mass.length),limits=new Float64Array(mass.length),aa=[],bb=[],ll=[];
+      for(let i=0;i<mass.length;i++){const y=armRest[i*3+1],elbow=Math.exp(-(((y-1.43)/.18)**2));mass[i]=y<2.65&&y>-.7?1:0;elastic[i]=420+elbow*1100;limits[i]=.065-elbow*.044;}
+      function armEdge(a,b){if(!mass[a]&&!mass[b])return;aa.push(a);bb.push(b);ll.push(Math.hypot(armRest[a*3]-armRest[b*3],armRest[a*3+1]-armRest[b*3+1],armRest[a*3+2]-armRest[b*3+2]));}
+      for(let r=0;r<=armRows;r++)for(let c=0;c<=armCols;c++){const i=r*(armCols+1)+c;if(c<armCols)armEdge(i,i+1);if(r<armRows){armEdge(i,i+armCols+1);if(c<armCols)armEdge(i,i+armCols+2);}if(c===0)armEdge(i,i+armCols);}
+      const item={mesh,g,rest:armRest,pos:armPos,prev:armPrev,mass,elastic,limits,A:Uint16Array.from(aa),B:Uint16Array.from(bb),L:Float64Array.from(ll),lambda:new Float64Array(ll.length),side};armSurfaces.push(item);return mesh;
+    }
+    const arms=[makeArm(-1),makeArm(1)];
+
+    // Bilinear bindings let independent cloth geometry follow the common volume.
+    // The red cloth is never made transparent, including at zero support.
+    function bindTheta(theta,y,offset=.013){theta=((theta%(Math.PI*2))+Math.PI*2)%(Math.PI*2);const ry=THREE.MathUtils.clamp((y-BASE)/HEIGHT*ROWS,0,ROWS-.00001),cx=theta/(Math.PI*2)*COLS,r=Math.floor(ry),c=Math.floor(cx),v=ry-r,u=cx-c;
+      return{ids:[r*COLS+c,r*COLS+(c+1)%COLS,(r+1)*COLS+c,(r+1)*COLS+(c+1)%COLS],weights:[(1-u)*(1-v),u*(1-v),(1-u)*v,u*v],offset};
+    }
+    function bindXY(x,y,offset=.013){const width=section(y)[0];return bindTheta(Math.asin(THREE.MathUtils.clamp(x/width,-.999,.999)),y,offset);}
+    const sampleP=new THREE.Vector3(),sampleN=new THREE.Vector3();
+    function readBinding(s,p=sampleP,n=sampleN){p.set(0,0,0);n.set(0,0,0);const normals=bodyGeometry.attributes.normal.array;for(let j=0;j<4;j++){const index=s.ids[j]*3,w=s.weights[j];p.x+=pos[index]*w;p.y+=pos[index+1]*w;p.z+=pos[index+2]*w;n.x+=normals[index]*w;n.y+=normals[index+1]*w;n.z+=normals[index+2]*w;}n.normalize();p.addScaledVector(n,s.offset);return p;}
+    const clothParts=[];
+    function clothPatch(columns,rows,mapper,flip=false,material=fabric){const bindings=[],points=new Float32Array((columns+1)*(rows+1)*3),tex=new Float32Array((columns+1)*(rows+1)*2),tri=[];
+      for(let r=0;r<=rows;r++)for(let c=0;c<=columns;c++){const i=r*(columns+1)+c;bindings.push(mapper(c/columns,r/rows));tex[i*2]=c/columns;tex[i*2+1]=r/rows;if(r<rows&&c<columns){const a=i,b=i+1,d=i+columns+1,e=d+1;tri.push(...(flip?[a,d,b,b,d,e]:[a,b,d,b,e,d]));}}
+      const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(points,3).setUsage(THREE.DynamicDrawUsage));geometry.setAttribute('uv',new THREE.BufferAttribute(tex,2));geometry.setIndex(tri);
+      const mesh=new THREE.Mesh(geometry,material);mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=false;model.add(mesh);const item={bindings,points,geometry,mesh};clothParts.push(item);return item;
+    }
+    for(const side of [-1,1])clothPatch(44,32,(u,v)=>{const[x,y]=cupXY(side,u,v);return bindXY(x,y,.017);},side===-1);
+    clothPatch(112,8,(u,v)=>{const theta=u*Math.PI*2,y=1.39+.20*v+.12*Math.sin(theta)**2;return bindTheta(theta,y,.011);});
+    clothPatch(10,18,(u,v)=>bindXY((u-.5)*(.20-.06*v),1.4+.48*v,.021));
+    for(const side of [-1,1]){
+      const curve=new THREE.CatmullRomCurve3([new THREE.Vector3(1.07,2.47,0),new THREE.Vector3(1.03,2.66,0),new THREE.Vector3(1.25,2.75,0),new THREE.Vector3(1.76,2.73,0),new THREE.Vector3(2.02,2.48,0),new THREE.Vector3(2.10,1.74,0)]);
+      clothPatch(6,66,(u,v)=>{const p=curve.getPoint(v);return bindTheta(side*(p.x+(u-.5)*.115),p.y,.019);},side===-1);
+    }
+
+    // Rounded piping and small stitched seams are geometry, not a printed grid.
+    const tubes=[];
+    function sewnPath(path,radius,material){const radial=6,points=new Float32Array(path.length*radial*3),faces=[];for(let r=0;r<path.length-1;r++)for(let c=0;c<radial;c++){const a=r*radial+c,b=r*radial+(c+1)%radial,d=a+radial,e=b+radial;faces.push(a,b,d,b,e,d);}
+      const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(points,3).setUsage(THREE.DynamicDrawUsage));geometry.setIndex(faces);const mesh=new THREE.Mesh(geometry,material);mesh.frustumCulled=false;mesh.castShadow=true;model.add(mesh);tubes.push({path,radius,points,geometry,centers:new Float64Array(path.length*3),normals:new Float64Array(path.length*3)});
+    }
+    for(const side of [-1,1]){
+      for(const v of [0,1])sewnPath(Array.from({length:70},(_,j)=>{const[x,y]=cupXY(side,j/69,v);return bindXY(x,y,.023);}),.007,binding);
+      sewnPath(Array.from({length:55},(_,j)=>{const v=j/54,u=.54+.12*v;const[x,y]=cupXY(side,u,v);return bindXY(x,y,.022);}),.0027,thread);
+      sewnPath(Array.from({length:55},(_,j)=>{const v=j/54,u=.555+.12*v;const[x,y]=cupXY(side,u,v);return bindXY(x,y,.022);}),.0015,thread);
+      sewnPath(Array.from({length:45},(_,j)=>{const[x,y]=cupXY(side,1,j/44);return bindXY(x,y,.023);}),.005,binding);
+    }
+    for(const y of [1.40,1.44])sewnPath(Array.from({length:145},(_,j)=>bindTheta(j/144*Math.PI*2,y+.12*Math.sin(j/144*Math.PI*2)**2,.019)),.002,thread);
+    const fittings=[];
+    for(const side of [-1,1]){const hardware=new THREE.Group(),metal=new THREE.MeshStandardMaterial({color:0x4a1824,metalness:.45,roughness:.35});
+      for(const[w,h,x,y]of [[.115,.014,0,.04],[.115,.014,0,-.04],[.014,.08,-.05,0],[.014,.08,.05,0],[.09,.012,0,0]]){const bar=new THREE.Mesh(new RoundedBoxGeometry(w,h,.015,2,.004),metal);bar.position.set(x,y,0);hardware.add(bar);}model.add(hardware);fittings.push({hardware,binding:bindTheta(side*.985,2.61,.031)});
+    }
+
+    // A small articulated silicone finger is a neutral contact probe.
+    const finger=new THREE.Group(),fingerMaterial=new THREE.MeshPhysicalMaterial({color:0xd4ad8c,roughness:.45,clearcoat:.1,clearcoatRoughness:.4,bumpMap:skinTexture,bumpScale:.0015});
+    const fingerProfile=[[0,0,.001],[.018,.001,.023],[.042,.002,.034],[.085,.004,.035],[.12,.007,.032],[.16,.009,.031],[.18,.012,.034],[.225,.017,.033],[.26,.022,.030],[.29,.027,.030],[.33,.035,.036],[.39,.048,.041]],fingerSlopes=profileSlopes(fingerProfile),fingerPoints=[],fingerUV=[],fingerFaces=[];
+    for(let r=0;r<=76;r++){const z=r/76*.39,[cx,radius]=profileAt(fingerProfile,fingerSlopes,z),crease=.0015*(Math.exp(-(((z-.15)/.006)**2))+Math.exp(-(((z-.27)/.006)**2)));
+      for(let c=0;c<=36;c++){const t=c/36*Math.PI*2,k=r*37+c;fingerPoints.push(cx+Math.sin(t)*(radius-crease),Math.cos(t)*(radius-crease)*.92,z);fingerUV.push(c/36,r/76);if(r<76&&c<36)fingerFaces.push(k,k+37,k+1,k+1,k+37,k+38);}}
+    const fingerGeometry=new THREE.BufferGeometry();fingerGeometry.setAttribute('position',new THREE.Float32BufferAttribute(fingerPoints,3));fingerGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(fingerUV,2));fingerGeometry.setIndex(fingerFaces);fingerGeometry.computeVertexNormals();const digit=new THREE.Mesh(fingerGeometry,fingerMaterial);digit.castShadow=true;digit.receiveShadow=true;finger.add(digit);
+    const nail=new THREE.Mesh(new RoundedBoxGeometry(.040,.006,.057,3,.005),new THREE.MeshPhysicalMaterial({color:0xe2c3b1,roughness:.36,clearcoat:.22}));nail.position.set(0,.032,.057);nail.castShadow=true;finger.add(nail);finger.visible=false;scene.add(finger);
+    const fingerDirection=new THREE.Vector3(),cameraRight=new THREE.Vector3(),zAxis=new THREE.Vector3(0,0,1);
+    let touchState=null,pressure=.55,withdrawal=null;
+    const bodySurface={mesh:body,pos,prev,rest,mass:inv,soft};
+    function applyContact(target){const contact=touchState;if(!contact||contact.surface!==target)return;const n=contact.normal;
+      for(let j=0;j<contact.ids.length;j++){const i=contact.ids[j],p=i*3,w=contact.weights[j],original=contact.original,jp=j*3;
+        const displacement=(target.pos[p]-original[jp])*n.x+(target.pos[p+1]-original[jp+1])*n.y+(target.pos[p+2]-original[jp+2])*n.z;
+        const correction=THREE.MathUtils.clamp((-contact.depth*contact.level*w-displacement)*.4,-.003,.003)*w;
+        target.pos[p]+=n.x*correction;target.pos[p+1]+=n.y*correction;target.pos[p+2]+=n.z*correction;
+      }
+    }
+
+    const edgeA=[],edgeB=[],edgeLength=[],edgeType=[];
+    function edge(a,b,k){if(!inv[a]&&!inv[b])return;edgeA.push(a);edgeB.push(b);edgeLength.push(Math.hypot(rest[a*3]-rest[b*3],rest[a*3+1]-rest[b*3+1],rest[a*3+2]-rest[b*3+2]));edgeType.push(k);}
+    for(let r=0;r<=ROWS;r++)for(let c=0;c<COLS;c++){const a=r*COLS+c,b=r*COLS+(c+1)%COLS;edge(a,b,0);if(r<ROWS){edge(a,a+COLS,0);edge(a,b+COLS,1);edge(b,a+COLS,1);}if(r<ROWS-1)edge(a,a+COLS*2,2);edge(a,r*COLS+(c+2)%COLS,2);}
+    const A=Uint16Array.from(edgeA),B=Uint16Array.from(edgeB),L=Float64Array.from(edgeLength),K=Uint8Array.from(edgeType),lambda=new Float64Array(A.length);
+    const volumeGradient=new Float64Array(N*3);
+    function volume(gradient=false){let value=0;if(gradient)volumeGradient.fill(0);for(let t=0;t<indices.length;t+=3){const a=indices[t]*3,b=indices[t+1]*3,c=indices[t+2]*3,ax=pos[a],ay=pos[a+1],az=pos[a+2],bx=pos[b],by=pos[b+1],bz=pos[b+2],cx=pos[c],cy=pos[c+1],cz=pos[c+2];
+        const gx=(by*cz-bz*cy)/6,gy=(bz*cx-bx*cz)/6,gz=(bx*cy-by*cx)/6;value+=ax*gx+ay*gy+az*gz;
+        if(gradient){volumeGradient[a]+=gx;volumeGradient[a+1]+=gy;volumeGradient[a+2]+=gz;volumeGradient[b]+=(cy*az-cz*ay)/6;volumeGradient[b+1]+=(cz*ax-cx*az)/6;volumeGradient[b+2]+=(cx*ay-cy*ax)/6;volumeGradient[c]+=(ay*bz-az*by)/6;volumeGradient[c+1]+=(az*bx-ax*bz)/6;volumeGradient[c+2]+=(ax*by-ay*bx)/6;}}
+      return value;
+    }
+    const restVolume=volume();
+    function preserveVolume(){const current=volume(true);let mass=0;for(const i of activeNodes){const p=i*3;mass+=inv[i]*(volumeGradient[p]**2+volumeGradient[p+1]**2+volumeGradient[p+2]**2);}const correction=THREE.MathUtils.clamp((restVolume-current)/(mass+.05),-.015,.015)*.45;for(const i of activeNodes){const p=i*3;for(let a=0;a<3;a++)pos[p+a]+=correction*inv[i]*volumeGradient[p+a];}}
+    const DT=1/120,ITERATIONS=5,root=new THREE.Vector3(),rootVelocity=new THREE.Vector3(),rootTarget=new THREE.Vector3(),rootAcceleration=new THREE.Vector3();
+    let support=.60,damping=.45,moving=null,mode='touch',motion=false,time=0,tick=0,accumulator=0,lastTime=0,settling=false,awakeSteps=0;
+    const motionTarget=new THREE.Vector3(),zero=new THREE.Vector3(),delta=new THREE.Vector3();
+    function solveEdges(reverse){for(let n=0;n<A.length;n++){const e=reverse?A.length-1-n:n,a=A[e],b=B[e],p=a*3,q=b*3,dx=pos[q]-pos[p],dy=pos[q+1]-pos[p+1],dz=pos[q+2]-pos[p+2],length=Math.sqrt(dx*dx+dy*dy+dz*dz);if(length<1e-8)continue;
+        const alpha=(K[e]===2?.00019:K[e]===1?.00008:.000025)/(DT*DT),dl=(-(length-L[e])-alpha*lambda[e])/(inv[a]+inv[b]+alpha);lambda[e]+=dl;const scale=-dl/length;
+        pos[p]+=dx*scale*inv[a];pos[p+1]+=dy*scale*inv[a];pos[p+2]+=dz*scale*inv[a];pos[q]-=dx*scale*inv[b];pos[q+1]-=dy*scale*inv[b];pos[q+2]-=dz*scale*inv[b];}}
+    function constrain(){for(const i of activeNodes){const p=i*3,dx=pos[p]-rest[p],dy=pos[p+1]-rest[p+1],dz=pos[p+2]-rest[p+2],d=Math.sqrt(dx*dx+dy*dy+dz*dz);if(d>.19){const f=.19/d;pos[p]=rest[p]+dx*f;pos[p+1]=rest[p+1]+dy*f;pos[p+2]=rest[p+2]+dz*f;}
+        const y=pos[p+1];let j=sectionIndex[i];while(j<sections.length-2&&y>sections[j+1][0])j++;while(j>0&&y<sections[j][0])j--;sectionIndex[i]=j;
+        const t=THREE.MathUtils.clamp((y-sections[j][0])/(sections[j+1][0]-sections[j][0]),0,1),q=j*8,c=sectionPolynomial,w=((c[q+3]*t+c[q+2])*t+c[q+1])*t+c[q],z=((c[q+7]*t+c[q+6])*t+c[q+5])*t+c[q+4];
+        const r=(pos[p]/(w*.85))**2+(pos[p+2]/(z*.85))**2;if(r<1){const s=1/Math.sqrt(Math.max(r,.001));pos[p]*=s;pos[p+2]*=s;}}}
+    function simulateArms(decay){for(const arm of armSurfaces){const {pos:p,prev:v,rest:r,mass,elastic,limits,A:aa,B:bb,L:ll,lambda:lam}=arm;
+        for(let i=0;i<mass.length;i++){if(!mass[i])continue;const j=i*3;for(let a=0;a<3;a++){const velocity=(p[j+a]-v[j+a])*decay;v[j+a]=p[j+a];p[j+a]+=velocity+(r[j+a]-p[j+a])*elastic[i]*DT*DT-(a===0?rootAcceleration.x:a===1?rootAcceleration.y:rootAcceleration.z)*.14*DT*DT;}}
+        lam.fill(0);for(let iteration=0;iteration<3;iteration++){applyContact(arm);for(let e=0;e<aa.length;e++){const a=aa[e],b=bb[e],j=a*3,k=b*3,dx=p[k]-p[j],dy=p[k+1]-p[j+1],dz=p[k+2]-p[j+2],d=Math.sqrt(dx*dx+dy*dy+dz*dz);if(d<1e-8)continue;const alpha=.00010/(DT*DT),dl=(-(d-ll[e])-alpha*lam[e])/(mass[a]+mass[b]+alpha);lam[e]+=dl;const c=-dl/d;p[j]+=dx*c*mass[a];p[j+1]+=dy*c*mass[a];p[j+2]+=dz*c*mass[a];p[k]-=dx*c*mass[b];p[k+1]-=dy*c*mass[b];p[k+2]-=dz*c*mass[b];}
+          for(let i=0;i<mass.length;i++){if(!mass[i])continue;const j=i*3,dx=p[j]-r[j],dy=p[j+1]-r[j+1],dz=p[j+2]-r[j+2],d=Math.sqrt(dx*dx+dy*dy+dz*dz);if(d>limits[i]){const c=limits[i]/d;p[j]=r[j]+dx*c;p[j+1]=r[j+1]+dy*c;p[j+2]=r[j+2]+dz*c;}}}
+      }}
+    function simulate(){time+=DT;if(touchState)touchState.level+=(.3+pressure*.85-touchState.level)*.12;
+      if(!settling){if(moving)motionTarget.copy(rootTarget);else if(motion)motionTarget.set(Math.sin(time*2.8)*.062,Math.sin(time*5.6)*.045,Math.sin(time*2.8+.4)*.018);else motionTarget.copy(zero);
+        rootAcceleration.copy(motionTarget).sub(root).multiplyScalar(moving?110:75).addScaledVector(rootVelocity,moving?-17:-11);if(rootAcceleration.length()>10)rootAcceleration.setLength(10);rootVelocity.addScaledVector(rootAcceleration,DT);root.addScaledVector(rootVelocity,DT);model.position.copy(root);
+      }else rootAcceleration.set(0,0,0);
+      const decay=Math.exp(-(1.4+damping*6.5+support*1.8)*DT);
+      for(const i of activeNodes){const p=i*3,k=68+(1-soft[i])*380,s= support*supportMask[i]*360;
+        for(let axis=0;axis<3;axis++){const velocity=THREE.MathUtils.clamp((pos[p+axis]-prev[p+axis])*decay,-.022,.022);prev[p+axis]=pos[p+axis];const stiffness=k+s*(axis===1?1.15:axis===2?.75:.30),restore=(rest[p+axis]-pos[p+axis])*stiffness;
+          const inertial=(axis===0?rootAcceleration.x:axis===1?rootAcceleration.y:rootAcceleration.z)*3.5;
+          const acceleration=restore-(inertial+(axis===1?2.6:0))*soft[i];pos[p+axis]+=velocity+acceleration*DT*DT;}}
+      lambda.fill(0);for(let iteration=0;iteration<ITERATIONS;iteration++){applyContact(bodySurface);solveEdges((tick+iteration)%2===1);if(iteration===ITERATIONS-1)preserveVolume();constrain();}simulateArms(decay);tick++;
+    }
+    const tangent=new THREE.Vector3(),sideVector=new THREE.Vector3(),normalVector=new THREE.Vector3(),pointVector=new THREE.Vector3(),nextPoint=new THREE.Vector3();
+    function updateGeometry(){surface.set(pos);bodyGeometry.attributes.position.needsUpdate=true;bodyGeometry.computeVertexNormals();
+      for(const arm of armSurfaces){arm.g.attributes.position.array.set(arm.pos);arm.g.attributes.position.needsUpdate=true;arm.g.computeVertexNormals();}
+      for(const part of clothParts){for(let i=0;i<part.bindings.length;i++){readBinding(part.bindings[i]).toArray(part.points,i*3);}part.geometry.attributes.position.needsUpdate=true;part.geometry.computeVertexNormals();}
+      for(const item of tubes){const{path,centers,normals,points,radius}=item;for(let i=0;i<path.length;i++){readBinding(path[i],pointVector,normalVector);pointVector.toArray(centers,i*3);normalVector.toArray(normals,i*3);}
+        for(let i=0;i<path.length;i++){const a=Math.max(0,i-1),b=Math.min(path.length-1,i+1);tangent.fromArray(centers,b*3).sub(nextPoint.fromArray(centers,a*3)).normalize();normalVector.fromArray(normals,i*3);sideVector.crossVectors(normalVector,tangent).normalize();normalVector.crossVectors(tangent,sideVector).normalize();pointVector.fromArray(centers,i*3);
+          for(let j=0;j<6;j++){const angle=j/6*Math.PI*2,k=(i*6+j)*3;points[k]=pointVector.x+radius*(normalVector.x*Math.cos(angle)+sideVector.x*Math.sin(angle));points[k+1]=pointVector.y+radius*(normalVector.y*Math.cos(angle)+sideVector.y*Math.sin(angle));points[k+2]=pointVector.z+radius*(normalVector.z*Math.cos(angle)+sideVector.z*Math.sin(angle));}}
+        item.geometry.attributes.position.needsUpdate=true;item.geometry.computeVertexNormals();}
+      for(const item of fittings){readBinding(item.binding,item.hardware.position,normalVector);item.hardware.quaternion.setFromUnitVectors(zAxis,normalVector);}
+      if(touchState){updateFinger(touchState,0);}else if(withdrawal){withdrawal.lift+=.008;updateFinger(withdrawal,withdrawal.lift);if(withdrawal.lift>.12){withdrawal=null;finger.visible=false;}}
+    }
+
+    // Contact is restricted to visible silicone. Opaque garment geometry occludes
+    // the underlying surface, including when the camera is moved.
+    const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),cursorPoint=new THREE.Vector3();
+    function cast(event){const r=canvas.getBoundingClientRect();pointer.set((event.clientX-r.left)/r.width*2-1,-(event.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);}
+    function pick(event){cast(event);return raycaster.intersectObjects([body,...arms,...clothParts.map(p=>p.mesh)],false)[0];}
+    function finishDrag(){if(!moving)return;const id=moving.id;moving=null;awakeSteps=300;controls.enabled=!touchState;canvas.classList.remove('holding');try{if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);}catch{}}
+    function exposedHit(event){const hit=pick(event);if(!hit)return null;if(hit.object===body)return{hit,surface:bodySurface};const arm=armSurfaces.find(a=>a.mesh===hit.object);return arm?{hit,surface:arm}:null;}
+    function tissueLabel(target,id){const y=target.rest[id*3+1],x=target.rest[id*3];if(target!==bodySurface)return Math.abs(y-1.43)<.22?'Elbow · thin, firm layer':y<1.43?'Forearm · moderate response':'Upper arm · soft muscle layer';if(y<1.5)return'Abdomen · compliant layer';if(y>2.5)return'Shoulder / clavicle · firm layer';return Math.abs(x)<.20?'Sternum · firm layer':'Upper chest · soft layer';}
+    function makeContact(hit,target,id){const point=model.worldToLocal(hit.point.clone()),normal=hit.face.normal.clone().normalize(),ids=[],weights=[],original=[];let nearest=-1,min=Infinity;
+      for(let i=0;i<target.mass.length;i++){if(!target.mass[i])continue;const p=i*3,d=(target.pos[p]-point.x)**2+(target.pos[p+1]-point.y)**2+(target.pos[p+2]-point.z)**2;if(d<min){min=d;nearest=i;}}
+      if(nearest<0||min>.018)return null;
+      for(let i=0;i<target.mass.length;i++){if(!target.mass[i])continue;const p=i*3,d=Math.hypot(target.pos[p]-point.x,target.pos[p+1]-point.y,target.pos[p+2]-point.z);if(d<.17){ids.push(i);weights.push(Math.exp(-((d/.075)**2)));original.push(target.pos[p],target.pos[p+1],target.pos[p+2]);}}
+      const depth=target===bodySurface?.012+target.soft[nearest]*.082:target.limits[nearest]*.9;
+      return{id,surface:target,point,normal,ids,weights,original,nearest,anchor:new THREE.Vector3().fromArray(target.pos,nearest*3),depth,level:0,lift:0};
+    }
+    function updateFinger(contact,lift){const current=new THREE.Vector3().fromArray(contact.surface.pos,contact.nearest*3).sub(contact.anchor).add(contact.point).add(root);finger.position.copy(current).addScaledVector(contact.normal,.002+lift);cameraRight.setFromMatrixColumn(camera.matrixWorld,0);fingerDirection.copy(contact.normal).multiplyScalar(.86).addScaledVector(cameraRight,.4);fingerDirection.y-=.20;fingerDirection.normalize();finger.quaternion.setFromUnitVectors(zAxis,fingerDirection);finger.visible=true;}
+    function finishTouch(){if(!touchState)return;const id=touchState.id;withdrawal={...touchState,lift:0};touchState=null;awakeSteps=300;controls.enabled=!moving;canvas.classList.remove('holding');try{if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);}catch{}}
+    canvas.addEventListener('pointerdown',event=>{if(!window.fitStudyReady||mode==='camera'||event.button!==0||moving||touchState)return;
+      if(mode==='touch'){const found=exposedHit(event);if(!found)return;const contact=makeContact(found.hit,found.surface,event.pointerId);if(!contact)return;event.preventDefault();event.stopImmediatePropagation();motion=false;document.getElementById('motion').setAttribute('aria-pressed','false');touchState=contact;withdrawal=null;controls.enabled=false;canvas.classList.add('holding');document.getElementById('hint').textContent=tissueLabel(contact.surface,contact.nearest)+' · hold to press · release to recover';canvas.setPointerCapture(event.pointerId);updateFinger(contact,0);return;}
+      const hit=pick(event);if(!hit)return;event.preventDefault();event.stopImmediatePropagation();motion=false;document.getElementById('motion').setAttribute('aria-pressed','false');
+      const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()),hit.point);moving={id:event.pointerId,plane,point:hit.point.clone(),start:root.clone()};rootTarget.copy(root);controls.enabled=false;canvas.classList.add('holding');canvas.setPointerCapture(event.pointerId);
+    },{capture:true});
+    let hoverTime=0;
+    canvas.addEventListener('pointermove',event=>{if(moving&&event.pointerId===moving.id){cast(event);if(raycaster.ray.intersectPlane(moving.plane,cursorPoint)){delta.copy(cursorPoint).sub(moving.point);if(delta.length()>.24)delta.setLength(.24);rootTarget.copy(moving.start).add(delta);rootTarget.x=THREE.MathUtils.clamp(rootTarget.x,-.28,.28);rootTarget.y=THREE.MathUtils.clamp(rootTarget.y,-.23,.23);rootTarget.z=THREE.MathUtils.clamp(rootTarget.z,-.12,.12);}return;}
+      if((mode==='move'||mode==='touch')&&!event.buttons&&performance.now()-hoverTime>90){hoverTime=performance.now();canvas.classList.toggle('ready',Boolean(mode==='touch'?exposedHit(event):pick(event)));}});
+    for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,event=>{if(moving&&moving.id===event.pointerId)finishDrag();if(touchState&&touchState.id===event.pointerId)finishTouch();});
+    function stopContact(){finishDrag();finishTouch();withdrawal=null;finger.visible=false;}
+    canvas.addEventListener('contextmenu',event=>event.preventDefault());window.addEventListener('blur',stopContact);document.addEventListener('visibilitychange',()=>{stopContact();lastTime=0;accumulator=0;});
+    function setMode(value){stopContact();mode=value;controls.mouseButtons.LEFT=value==='camera'?THREE.MOUSE.ROTATE:null;controls.touches.ONE=value==='camera'?THREE.TOUCH.ROTATE:null;document.getElementById('touch').setAttribute('aria-pressed',String(value==='touch'));document.getElementById('move').setAttribute('aria-pressed',String(value==='move'));document.getElementById('cameraMode').setAttribute('aria-pressed',String(value==='camera'));canvas.classList.toggle('orbit',value==='camera');canvas.classList.remove('ready');document.getElementById('hint').textContent=value==='camera'?'Drag to orbit · scroll or pinch to zoom':value==='touch'?'Hold on exposed silicone to press · release to recover · '+(matchMedia('(pointer:coarse)').matches?'Camera to orbit':'right-drag to orbit'):'Drag to move the mannequin · release to settle · '+(matchMedia('(pointer:coarse)').matches?'Camera to orbit':'right-drag to orbit');}
+    document.getElementById('touch').addEventListener('click',()=>setMode('touch'));document.getElementById('move').addEventListener('click',()=>setMode('move'));document.getElementById('cameraMode').addEventListener('click',()=>setMode('camera'));
+    document.getElementById('motion').addEventListener('click',()=>{stopContact();motion=!motion;awakeSteps=300;document.getElementById('motion').setAttribute('aria-pressed',String(motion));});
+    document.getElementById('support').addEventListener('input',e=>{support=+e.target.value/100;awakeSteps=300;document.getElementById('supportValue').value=e.target.value;});
+    document.getElementById('pressure').addEventListener('input',e=>{pressure=+e.target.value/100;document.getElementById('pressureValue').value=e.target.value;});
+    const settled=new Float64Array(N*3);
+    function reset(){stopContact();motion=false;support=.6;pressure=.55;document.getElementById('support').value=60;document.getElementById('supportValue').value=60;document.getElementById('pressure').value=55;document.getElementById('pressureValue').value=55;document.getElementById('motion').setAttribute('aria-pressed','false');root.set(0,0,0);rootVelocity.set(0,0,0);rootTarget.set(0,0,0);model.position.set(0,0,0);pos.set(settled);prev.set(settled);for(const arm of armSurfaces){arm.pos.set(arm.rest);arm.prev.set(arm.rest);}time=0;accumulator=0;setMode('touch');awakeSteps=0;frame();updateGeometry();}
+    function hideUI(value){document.body.classList.toggle('clean',value===undefined?!document.body.classList.contains('clean'):value);}
+    document.getElementById('reset').addEventListener('click',reset);document.getElementById('hide').addEventListener('click',()=>hideUI());
+    window.addEventListener('keydown',event=>{if(event.metaKey||event.ctrlKey||event.altKey||event.repeat)return;if(event.code==='KeyH')hideUI();if(event.code==='KeyR'&&window.fitStudyReady)reset();if(event.code==='Escape'){stopContact();hideUI(false);}});
+    canvas.addEventListener('dblclick',()=>{if(document.body.classList.contains('clean'))hideUI(false);});
+    window.addEventListener('resize',()=>{stopContact();camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);frame();});
+
+    // Settle gravity and garment support before the first displayed frame.
+    settling=true;for(let batch=0;batch<8;batch++){for(let i=0;i<30;i++)simulate();await new Promise(resolve=>setTimeout(resolve,0));}settling=false;time=0;settled.set(pos);prev.set(pos);updateGeometry();
+    renderer.render(scene,camera);window.fitStudyReady=true;loader.classList.add('done');setTimeout(()=>loader.remove(),650);
+    function animate(now){requestAnimationFrame(animate);if(document.hidden){lastTime=0;return;}const elapsed=lastTime?Math.min(.05,(now-lastTime)/1000):DT;lastTime=now;let steps=0;
+      if(moving||touchState||motion||awakeSteps>0){accumulator=Math.min(accumulator+elapsed,DT*6);while(accumulator>=DT&&steps<6){simulate();accumulator-=DT;steps++;if(awakeSteps>0)awakeSteps--;}}else accumulator=0;
+      if(steps){updateGeometry();needsRender=true;}if(!moving&&!touchState&&controls.update())needsRender=true;if(needsRender){renderer.render(scene,camera);needsRender=false;}}
+    requestAnimationFrame(animate);
+    // Read-only hooks used to verify stability and garment attachment.
+    window.fitStudy=Object.freeze({inspect:()=>({vertices:N,clothVertices:clothParts.reduce((a,p)=>a+p.bindings.length,0),mode,moving:Boolean(moving),touching:Boolean(touchState),site:touchState?tissueLabel(touchState.surface,touchState.nearest):null,contact:touchState?{depth:touchState.depth,nearest:touchState.nearest,normal:touchState.normal.toArray(),original:touchState.anchor.toArray(),current:Array.from(touchState.surface.pos.slice(touchState.nearest*3,touchState.nearest*3+3))}:null,motion,support,pressure,root:root.toArray(),camera:camera.position.toArray(),positions:Array.from(pos),armPositions:armSurfaces.map(a=>Array.from(a.pos)),settled:Array.from(settled),volume:volume(),restVolume}),project:(x,y,z)=>{const p=new THREE.Vector3(x,y,z).add(root).project(camera);return{x:(p.x+1)*innerWidth/2,y:(1-p.y)*innerHeight/2};}});
+  </script>
+</body>
+</html>
