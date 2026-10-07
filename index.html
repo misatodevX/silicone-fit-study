@@ -60,12 +60,14 @@
     import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
     import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
     import {RectAreaLightUniformsLib} from 'three/addons/lights/RectAreaLightUniformsLib.js';
+    import {MarchingCubes} from 'three/addons/objects/MarchingCubes.js';
+    import {mergeVertices} from 'three/addons/utils/BufferGeometryUtils.js';
 
     const canvas=document.getElementById('stage'),loader=document.getElementById('loading');
     const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:'high-performance'});
     renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.setSize(innerWidth,innerHeight);
     renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.95;
-    renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+    renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.VSMShadowMap;
     const scene=new THREE.Scene(),model=new THREE.Group();scene.add(model);let needsRender=true;
     const camera=new THREE.PerspectiveCamera(29,innerWidth/innerHeight,.05,40);
     const controls=new OrbitControls(camera,canvas);controls.target.set(0,2.19,.36);controls.enablePan=false;controls.enableDamping=true;controls.dampingFactor=.095;
@@ -86,8 +88,8 @@
     const keyBox=new THREE.RectAreaLight(0xffeee1,5.3,4.5,5.5);keyBox.position.set(-3,5,4);keyBox.lookAt(0,2,0);scene.add(keyBox);
     const fill=new THREE.RectAreaLight(0xe3e7ef,2.3,3,4);fill.position.set(3,3.8,3);fill.lookAt(0,2,0);scene.add(fill);
     const rim=new THREE.RectAreaLight(0xcbd8eb,2,1.5,4);rim.position.set(3,3.5,-2.5);rim.lookAt(0,2,0);scene.add(rim);
-    const shadowLight=new THREE.DirectionalLight(0xfff0e4,1.45);shadowLight.position.set(-3.6,6,4.5);shadowLight.target.position.set(0,2,0);shadowLight.castShadow=true;
-    shadowLight.shadow.mapSize.set(2048,2048);Object.assign(shadowLight.shadow.camera,{left:-3,right:3,top:4,bottom:-2,near:.5,far:13});shadowLight.shadow.bias=-.0001;shadowLight.shadow.normalBias=.009;shadowLight.shadow.radius=4;scene.add(shadowLight,shadowLight.target);
+    const shadowLight=new THREE.DirectionalLight(0xfff0e4,.8);shadowLight.position.set(-3.6,6,4.5);shadowLight.target.position.set(0,2,0);shadowLight.castShadow=true;
+    shadowLight.shadow.mapSize.set(2048,2048);Object.assign(shadowLight.shadow.camera,{left:-3,right:3,top:4,bottom:-2,near:.5,far:13});shadowLight.shadow.bias=-.0003;shadowLight.shadow.normalBias=.012;shadowLight.shadow.radius=5;shadowLight.shadow.blurSamples=8;scene.add(shadowLight,shadowLight.target);
     scene.add(new THREE.HemisphereLight(0xeee4df,0x33303c,.22));
 
     function proceduralTexture(kind){const c=document.createElement('canvas');c.width=c.height=512;const ctx=c.getContext('2d'),image=ctx.createImageData(512,512);let random=19;
@@ -111,22 +113,40 @@
     const sectionPolynomial=new Float64Array((sections.length-1)*8);
     for(let j=0;j<sections.length-1;j++)for(let c=1;c<=2;c++){const h=sections[j+1][0]-sections[j][0],a=sections[j][c],b=sections[j+1][c],m=h*sectionSlopes[j][c-1],n=h*sectionSlopes[j+1][c-1],p=j*8+(c-1)*4;sectionPolynomial[p]=a;sectionPolynomial[p+1]=m;sectionPolynomial[p+2]=-3*a-2*m+3*b-n;sectionPolynomial[p+3]=2*a+m-2*b+n;}
     function section(y){return profileAt(sections,sectionSlopes,y);}
+    const armProfile=[[-1.8,1.54,.15],[-.2,1.45,.17],[.5,1.34,.19],[.96,1.25,.225],[1.43,1.18,.211],[1.74,1.13,.238],[2.12,1.05,.271],[2.42,1.01,.29],[2.60,.985,.27],[2.72,.93,.175],[2.80,.80,.01],[2.86,.72,.002]],armSlopes=profileSlopes(armProfile);
+    function fieldContext(y){const[w,d]=section(y),[armX,armR]=profileAt(armProfile,armSlopes,y);return{y,w,d,armX,armR,breastY:((y-1.97)/(y>1.97?.73:.43))**2};}
+    function smoothUnion(a,b,k){const h=THREE.MathUtils.clamp(.5+.5*(b-a)/k,0,1);return b+(a-b)*h-k*h*(1-h);}
+    function torsoDistance(x,z,c){let d=(Math.sqrt((x/c.w)**2+(z/c.d)**2)-1)*c.d;
+      const blend=.15+.14*THREE.MathUtils.smoothstep(c.y,2.1,2.65);
+      for(const side of [-1,1]){const q=Math.sqrt(((x-side*.455)/.47)**2+c.breastY+((z-.445)/.55)**2);d=smoothUnion(d,(q-1)*.43,blend);}
+      if(z>0&&c.y>2.45&&c.y<2.9){const clavicle=.009*Math.exp(-(((c.y-(2.67-.11*Math.abs(x)))/.038)**2))*Math.exp(-(((Math.abs(x)-.45)/.44)**2));d-=clavicle;}
+      return Math.max(d,-.1-c.y,c.y-5);
+    }
+    function armDistance(x,z,c){return Math.max(Math.sqrt((Math.abs(x)-c.armX)**2+((z+.015)/.92)**2)-c.armR,-1.8-c.y,c.y-2.85);}
+    function skinDistance(x,z,c,united=false){const t=torsoDistance(x,z,c);return united?smoothUnion(t,armDistance(x,z,c),.14):t;}
+    function surfaceZ(x,y,united=false){const c=fieldContext(y);let high=1.5,low=0,found=false;
+      for(let i=1;i<=30;i++){const z=1.5-i*.05;if(skinDistance(x,z,c,united)<=0){low=z;found=true;break;}high=z;}
+      if(!found)return Math.sqrt(Math.max(0,1-(x/c.w)**2))*c.d;
+      for(let i=0;i<17;i++){const z=(low+high)*.5;if(skinDistance(x,z,c,united)<0)low=z;else high=z;}return(low+high)*.5;
+    }
+    function fieldNormal(x,y,z,united=false){const e=.0015,c=fieldContext(y);return new THREE.Vector3(skinDistance(x+e,z,c,united)-skinDistance(x-e,z,c,united),skinDistance(x,z,fieldContext(y+e),united)-skinDistance(x,z,fieldContext(y-e),united),skinDistance(x,z+e,c,united)-skinDistance(x,z-e,c,united)).normalize();}
+    function torsoPoint(theta,y,united=false,context=fieldContext(y)){const dx=Math.sin(theta)*context.w,dz=Math.cos(theta)*context.d;let low=0,high=3;for(let i=0;i<20;i++){const t=(low+high)*.5;if(skinDistance(dx*t,dz*t,context,united)<0)low=t;else high=t;}const t=(low+high)*.5;return new THREE.Vector3(dx*t,y,dz*t);}
     const ROWS=144,COLS=128,BASE=-.1,HEIGHT=5.1,N=(ROWS+1)*COLS+2;
     const rest=new Float64Array(N*3),pos=new Float64Array(N*3),prev=new Float64Array(N*3),inv=new Float64Array(N),soft=new Float64Array(N),supportMask=new Float64Array(N);
     const surface=new Float32Array(N*3),uv=new Float32Array(N*2),indices=[];
     const sectionIndex=new Uint8Array(N);
-    function cupXY(side,u,v){const x=side*(.068+.865*u-.018*v+.012*Math.sin(Math.PI*u)*(1-v));const low=1.48-.17*Math.sin(Math.PI*u)+.19*u;const high=1.88+.72*Math.pow(u,.87)-.09*Math.pow(u,5);return[x,low+(high-low)*v];}
-    for(let row=0;row<=ROWS;row++){const y=BASE+row/ROWS*HEIGHT,[width,depth]=section(y);
-      for(let col=0;col<COLS;col++){const i=row*COLS+col,p=i*3,theta=col/COLS*Math.PI*2,front=Math.max(0,Math.cos(theta)),x=Math.sin(theta)*width;
+    function cupXY(side,u,v){const x=side*((.10+.75*u)*(1-v)+(.072+.77*u)*v);const low=1.57-.115*Math.sin(Math.PI*u)+.04*u;const high=1.95+.58*Math.sin(Math.PI*u*.70)-.22*THREE.MathUtils.smoothstep(u,.78,1);return[x,low+(high-low)*v];}
+    for(let row=0;row<=ROWS;row++){const y=BASE+row/ROWS*HEIGHT,[width,depth]=section(y),context=fieldContext(y);
+      for(let col=0;col<COLS;col++){const i=row*COLS+col,p=i*3,theta=col/COLS*Math.PI*2,front=Math.max(0,Math.cos(theta)),point=torsoPoint(theta,y,false,context),x=point.x;
         const a=Math.exp(-(((x+.45)/.43)**2*1.8+((y-1.96)/.49)**2*1.15)),b=Math.exp(-(((x-.45)/.43)**2*1.8+((y-1.96)/.49)**2*1.15));
         const upper=.015*Math.exp(-(((Math.abs(x)-.46)/.3)**2+((y-2.67)/.08)**2));
         const sternum=.012*Math.exp(-((x/.12)**2+((y-2.55)/.25)**2));
-        rest[p]=x;rest[p+1]=y;rest[p+2]=Math.cos(theta)*depth+(.61*(a+b)+upper-sternum)*front**2;
+        point.toArray(rest,p);
         let sj=0;while(sj<sections.length-2&&y>sections[sj+1][0])sj++;sectionIndex[i]=sj;
         uv[i*2]=col/COLS;uv[i*2+1]=row/ROWS;
         const abdominal=.46*Math.exp(-(((y-1.10)/.42)**2))*front**3,shoulder=.15*Math.exp(-(((Math.abs(x)-.85)/.28)**2+((y-2.59)/.27)**2))*front;
         soft[i]=Math.min(1,((a+b)*front**4+abdominal+shoulder));inv[i]=(y>.58&&y<2.83&&Math.cos(theta)>.06)?Math.max(.025,soft[i]):0;
-        const u=THREE.MathUtils.clamp((Math.abs(x)-.06)/.86,0,1),bottom=1.48-.17*Math.sin(Math.PI*u)+.19*u,top=1.88+.72*u**.87-.09*u**5;
+        const u=THREE.MathUtils.clamp((Math.abs(x)-.08)/.77,0,1),bottom=1.57-.115*Math.sin(Math.PI*u)+.04*u,top=1.95+.58*Math.sin(Math.PI*u*.70)-.22*THREE.MathUtils.smoothstep(u,.78,1);
         supportMask[i]=(y>bottom&&y<top&&Math.abs(x)<.94&&front>.1)?(.45+.55*Math.max(0,1-(y-bottom)/(top-bottom))):0;
         if(row<ROWS){const next=row*COLS+(col+1)%COLS;indices.push(i,next,i+COLS,next,next+COLS,i+COLS);}
       }}
@@ -134,46 +154,77 @@
     const activeNodes=Uint16Array.from(Array.from(inv.keys()).filter(i=>inv[i]>0));
     for(let j=0;j<COLS;j++){indices.push(lower,(j+1)%COLS,j,upper,ROWS*COLS+j,ROWS*COLS+(j+1)%COLS);}
     pos.set(rest);prev.set(rest);surface.set(rest);
-    const bodyGeometry=new THREE.BufferGeometry();bodyGeometry.setAttribute('position',new THREE.BufferAttribute(surface,3).setUsage(THREE.DynamicDrawUsage));bodyGeometry.setAttribute('uv',new THREE.BufferAttribute(uv,2));bodyGeometry.setIndex(indices);bodyGeometry.computeVertexNormals();
+    const simulationGeometry=new THREE.BufferGeometry();simulationGeometry.setAttribute('position',new THREE.BufferAttribute(surface,3).setUsage(THREE.DynamicDrawUsage));simulationGeometry.setAttribute('uv',new THREE.BufferAttribute(uv,2));simulationGeometry.setIndex(indices);simulationGeometry.computeVertexNormals();
+    const simulationRestNormals=Float32Array.from(simulationGeometry.attributes.normal.array);
+    // One smooth implicit skin surface joins the shoulders, torso and arms.
+    // The simulation remains a small shared lattice; no physics object per voxel.
+    const resolution=144,iso=new MarchingCubes(resolution,silicone,false,false,150000);iso.isolation=0;
+    const bounds={min:new THREE.Vector3(-1.87,-1.95,-.72),max:new THREE.Vector3(1.87,5.16,1.32)},extent=bounds.max.clone().sub(bounds.min);
+    for(let y=0;y<resolution;y++){const wy=bounds.min.y+y/resolution*extent.y,c=fieldContext(wy);for(let z=0;z<resolution;z++){const wz=bounds.min.z+z/resolution*extent.z;for(let x=0;x<resolution;x++){const wx=bounds.min.x+x/resolution*extent.x;iso.field[x+y*resolution+z*resolution*resolution]=-skinDistance(wx,wz,c,true);}}if(y%20===0)await new Promise(resolve=>setTimeout(resolve,0));}
+    iso.update();const rawSkin=new THREE.BufferGeometry(),rawPositions=iso.geometry.attributes.position.array.slice(0,iso.count*3);
+    for(let i=0;i<rawPositions.length;i+=3){rawPositions[i]=bounds.min.x+(rawPositions[i]+1)*.5*extent.x;rawPositions[i+1]=bounds.min.y+(rawPositions[i+1]+1)*.5*extent.y;rawPositions[i+2]=bounds.min.z+(rawPositions[i+2]+1)*.5*extent.z;}
+    rawSkin.setAttribute('position',new THREE.BufferAttribute(rawPositions,3));const bodyGeometry=mergeVertices(rawSkin,.00003);rawSkin.dispose();iso.geometry.dispose();bodyGeometry.computeVertexNormals();
+    const skinRest=Float32Array.from(bodyGeometry.attributes.position.array),skinRestNormals=new Float32Array(skinRest.length),skinUV=new Float32Array(skinRest.length/3*2);
+    for(let i=0;i<skinRest.length/3;i++){const p=i*3,x=skinRest[p],y=skinRest[p+1],z=skinRest[p+2],[w,d]=section(y);skinUV[i*2]=Math.atan2(x/w,z/d)/(Math.PI*2)+.5;skinUV[i*2+1]=(y+.1)/5.1;fieldNormal(x,y,z,true).toArray(skinRestNormals,p);}
+    bodyGeometry.setAttribute('normal',new THREE.BufferAttribute(Float32Array.from(skinRestNormals),3).setUsage(THREE.DynamicDrawUsage));
+    bodyGeometry.setAttribute('uv',new THREE.BufferAttribute(skinUV,2));bodyGeometry.attributes.position.setUsage(THREE.DynamicDrawUsage);
     const body=new THREE.Mesh(bodyGeometry,silicone);body.castShadow=true;body.receiveShadow=true;body.frustumCulled=false;model.add(body);
 
     // Sculpted arm cross-sections continue beyond the approved crop.
     const armSurfaces=[];
     function makeArm(side){const armRows=112,armCols=64,points=[],armUV=[],faces=[];
-      const profile=[[-1.8,1.58,.16],[-.2,1.48,.18],[.7,1.35,.20],[1.35,1.22,.235],[1.65,1.17,.245],[2.1,1.10,.275],[2.45,1.055,.31],[2.65,.975,.28],[2.78,.83,.16],[2.88,.60,.002]],slopes=profileSlopes(profile);
+      const profile=armProfile,slopes=armSlopes;
       for(let r=0;r<=armRows;r++){const y=-1.8+r/armRows*4.7,[cx,radius]=profileAt(profile,slopes,y);
         for(let c=0;c<=armCols;c++){const t=c/armCols*Math.PI*2;points.push(side*(cx+Math.sin(t)*radius),y,-.015+Math.cos(t)*radius*.9);armUV.push(c/armCols,r/armRows);
           if(r<armRows&&c<armCols){const i=r*(armCols+1)+c;faces.push(i,i+1,i+armCols+1,i+1,i+armCols+2,i+armCols+1);}}}
       const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(points,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(armUV,2));g.setIndex(side===1?faces:faces.flatMap((_,i)=>i%3===0?[faces[i],faces[i+2],faces[i+1]]:[]));g.computeVertexNormals();
-      const mesh=new THREE.Mesh(g,silicone);mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=false;model.add(mesh);
+      const mesh=new THREE.Mesh(g,silicone);mesh.visible=false;
       const armRest=Float64Array.from(points),armPos=Float64Array.from(points),armPrev=Float64Array.from(points),mass=new Float64Array(points.length/3),elastic=new Float64Array(mass.length),limits=new Float64Array(mass.length),aa=[],bb=[],ll=[];
       for(let i=0;i<mass.length;i++){const y=armRest[i*3+1],elbow=Math.exp(-(((y-1.43)/.18)**2));mass[i]=y<2.65&&y>-.7?1:0;elastic[i]=420+elbow*1100;limits[i]=.065-elbow*.044;}
       function armEdge(a,b){if(!mass[a]&&!mass[b])return;aa.push(a);bb.push(b);ll.push(Math.hypot(armRest[a*3]-armRest[b*3],armRest[a*3+1]-armRest[b*3+1],armRest[a*3+2]-armRest[b*3+2]));}
       for(let r=0;r<=armRows;r++)for(let c=0;c<=armCols;c++){const i=r*(armCols+1)+c;if(c<armCols)armEdge(i,i+1);if(r<armRows){armEdge(i,i+armCols+1);if(c<armCols)armEdge(i,i+armCols+2);}if(c===0)armEdge(i,i+armCols);}
-      const item={mesh,g,rest:armRest,pos:armPos,prev:armPrev,mass,elastic,limits,A:Uint16Array.from(aa),B:Uint16Array.from(bb),L:Float64Array.from(ll),lambda:new Float64Array(ll.length),side};armSurfaces.push(item);return mesh;
+      const item={mesh,g,rest:armRest,pos:armPos,prev:armPrev,restNormals:Float32Array.from(g.attributes.normal.array),mass,elastic,limits,A:Uint16Array.from(aa),B:Uint16Array.from(bb),L:Float64Array.from(ll),lambda:new Float64Array(ll.length),side};armSurfaces.push(item);return mesh;
     }
     const arms=[makeArm(-1),makeArm(1)];
 
     // Bilinear bindings let independent cloth geometry follow the common volume.
     // The red cloth is never made transparent, including at zero support.
-    function bindTheta(theta,y,offset=.013){theta=((theta%(Math.PI*2))+Math.PI*2)%(Math.PI*2);const ry=THREE.MathUtils.clamp((y-BASE)/HEIGHT*ROWS,0,ROWS-.00001),cx=theta/(Math.PI*2)*COLS,r=Math.floor(ry),c=Math.floor(cx),v=ry-r,u=cx-c;
-      return{ids:[r*COLS+c,r*COLS+(c+1)%COLS,(r+1)*COLS+c,(r+1)*COLS+(c+1)%COLS],weights:[(1-u)*(1-v),u*(1-v),(1-u)*v,u*v],offset};
+    function latticeBinding(theta,y){theta=((theta%(Math.PI*2))+Math.PI*2)%(Math.PI*2);const ry=THREE.MathUtils.clamp((y-BASE)/HEIGHT*ROWS,0,ROWS-.00001),cx=theta/(Math.PI*2)*COLS,r=Math.floor(ry),c=Math.floor(cx),v=ry-r,u=cx-c;return{ids:[r*COLS+c,r*COLS+(c+1)%COLS,(r+1)*COLS+c,(r+1)*COLS+(c+1)%COLS],weights:[(1-u)*(1-v),u*(1-v),(1-u)*v,u*v]};}
+    function bindTheta(theta,y,offset=.013,united=false){const point=torsoPoint(theta,y,united),s=latticeBinding(theta,y);return{...s,base:point,normal:fieldNormal(point.x,y,point.z,united),offset};
     }
-    function bindXY(x,y,offset=.013){const width=section(y)[0];return bindTheta(Math.asin(THREE.MathUtils.clamp(x/width,-.999,.999)),y,offset);}
+    function bindXY(x,y,offset=.013){const[w,d]=section(y),z=surfaceZ(x,y),s=latticeBinding(Math.atan2(x/w,z/d),y);return{...s,base:new THREE.Vector3(x,y,z),normal:fieldNormal(x,y,z),offset};}
+    function bindPoint(point,offset=.013){const p=point.clone(),e=.0015;
+      for(let i=0;i<12;i++){const c=fieldContext(p.y),distance=skinDistance(p.x,p.z,c,true);if(Math.abs(distance)<.00002)break;
+        const gx=(skinDistance(p.x+e,p.z,c,true)-skinDistance(p.x-e,p.z,c,true))/(2*e),gy=(skinDistance(p.x,p.z,fieldContext(p.y+e),true)-skinDistance(p.x,p.z,fieldContext(p.y-e),true))/(2*e),gz=(skinDistance(p.x,p.z+e,c,true)-skinDistance(p.x,p.z-e,c,true))/(2*e),scale=THREE.MathUtils.clamp(distance/(gx*gx+gy*gy+gz*gz+.000001),-.12,.12);p.x-=gx*scale;p.y-=gy*scale;p.z-=gz*scale;
+      }
+      const[w,d]=section(p.y),s=latticeBinding(Math.atan2(p.x/w,p.z/d),p.y);return{...s,base:p,normal:fieldNormal(p.x,p.y,p.z,true),offset};
+    }
+    function bindCup(side,u,v,offset=.017){const[x,y]=cupXY(side,u,v);if(u<=.70)return bindXY(x,y,offset);const[w,d]=section(y),theta=Math.atan2(Math.abs(x)/w,surfaceZ(x,y)/d),wrap=THREE.MathUtils.smoothstep(u,.70,1);return bindTheta(side*(theta+(1.50-theta)*wrap),y,offset);}
+    const skinBindings=[];
+    for(let i=0;i<skinRest.length/3;i++){const p=i*3,x=skinRest[p],y=skinRest[p+1],z=skinRest[p+2],context=fieldContext(y),bodyWeight=THREE.MathUtils.clamp(.5+.5*(armDistance(x,z,context)-torsoDistance(x,z,context))/.14,0,1),s=latticeBinding(Math.atan2(x/context.w,z/context.d),y),side=x<0?0:1,arm=armSurfaces[side];
+      const ry=THREE.MathUtils.clamp((y+1.8)/4.7*112,0,111.9999),theta=((Math.atan2((x/(side===0?-1:1)-context.armX)/Math.max(.002,context.armR),(z+.015)/Math.max(.002,context.armR*.9))%(Math.PI*2))+Math.PI*2)%(Math.PI*2),cx=theta/(Math.PI*2)*64,r=Math.floor(ry),col=Math.floor(cx),v=ry-r,u=cx-col;
+      skinBindings.push({body:s,arm,ids:[r*65+col,r*65+col+1,(r+1)*65+col,(r+1)*65+col+1],weights:[(1-u)*(1-v),u*(1-v),(1-u)*v,u*v],bodyWeight});
+    }
     const sampleP=new THREE.Vector3(),sampleN=new THREE.Vector3();
-    function readBinding(s,p=sampleP,n=sampleN){p.set(0,0,0);n.set(0,0,0);const normals=bodyGeometry.attributes.normal.array;for(let j=0;j<4;j++){const index=s.ids[j]*3,w=s.weights[j];p.x+=pos[index]*w;p.y+=pos[index+1]*w;p.z+=pos[index+2]*w;n.x+=normals[index]*w;n.y+=normals[index+1]*w;n.z+=normals[index+2]*w;}n.normalize();p.addScaledVector(n,s.offset);return p;}
+    function readBinding(s,p=sampleP,n=sampleN){p.copy(s.base);n.copy(s.normal);const normals=simulationGeometry.attributes.normal.array;for(let j=0;j<4;j++){const index=s.ids[j]*3,w=s.weights[j];p.x+=(pos[index]-rest[index])*w;p.y+=(pos[index+1]-rest[index+1])*w;p.z+=(pos[index+2]-rest[index+2])*w;n.x+=(normals[index]-simulationRestNormals[index])*w;n.y+=(normals[index+1]-simulationRestNormals[index+1])*w;n.z+=(normals[index+2]-simulationRestNormals[index+2])*w;}n.normalize();p.addScaledVector(n,s.offset);return p;}
     const clothParts=[];
     function clothPatch(columns,rows,mapper,flip=false,material=fabric){const bindings=[],points=new Float32Array((columns+1)*(rows+1)*3),tex=new Float32Array((columns+1)*(rows+1)*2),tri=[];
       for(let r=0;r<=rows;r++)for(let c=0;c<=columns;c++){const i=r*(columns+1)+c;bindings.push(mapper(c/columns,r/rows));tex[i*2]=c/columns;tex[i*2+1]=r/rows;if(r<rows&&c<columns){const a=i,b=i+1,d=i+columns+1,e=d+1;tri.push(...(flip?[a,d,b,b,d,e]:[a,b,d,b,e,d]));}}
       const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(points,3).setUsage(THREE.DynamicDrawUsage));geometry.setAttribute('uv',new THREE.BufferAttribute(tex,2));geometry.setIndex(tri);
       const mesh=new THREE.Mesh(geometry,material);mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=false;model.add(mesh);const item={bindings,points,geometry,mesh};clothParts.push(item);return item;
     }
-    for(const side of [-1,1])clothPatch(44,32,(u,v)=>{const[x,y]=cupXY(side,u,v);return bindXY(x,y,.017);},side===-1);
-    clothPatch(112,8,(u,v)=>{const theta=u*Math.PI*2,y=1.39+.20*v+.12*Math.sin(theta)**2;return bindTheta(theta,y,.011);});
-    clothPatch(10,18,(u,v)=>bindXY((u-.5)*(.20-.06*v),1.4+.48*v,.021));
     for(const side of [-1,1]){
-      const curve=new THREE.CatmullRomCurve3([new THREE.Vector3(1.07,2.47,0),new THREE.Vector3(1.03,2.66,0),new THREE.Vector3(1.25,2.75,0),new THREE.Vector3(1.76,2.73,0),new THREE.Vector3(2.02,2.48,0),new THREE.Vector3(2.10,1.74,0)]);
-      clothPatch(6,66,(u,v)=>{const p=curve.getPoint(v);return bindTheta(side*(p.x+(u-.5)*.115),p.y,.019);},side===-1);
+      clothPatch(64,42,(u,v)=>bindCup(side,u,v),side===-1);
+      clothPatch(40,18,(u,v)=>{const theta=side*(1.50+u*1.35),y=(1-u)*(1.61+v*.5892)+u*(1.47+v*.34);return bindTheta(theta,y,.017);},side===-1);
+    }
+    clothPatch(112,8,(u,v)=>{const theta=u*Math.PI*2,y=1.37+.16*v+(.15+.05*v)*Math.sin(theta)**2;return bindTheta(theta,y,.011);});
+    clothPatch(14,24,(u,v)=>bindXY((u-.5)*(.27-.055*v),1.41+.54*v,.024));
+    const strapCurves=[];
+    for(const side of [-1,1]){
+      const start=bindCup(side,.74,.94).base,front=(x,y)=>new THREE.Vector3(side*x,y,surfaceZ(side*x,y,true));
+      const curve=new THREE.CatmullRomCurve3([start,front(.74,2.61),front(.73,2.76),new THREE.Vector3(side*.73,2.89,.16),new THREE.Vector3(side*.73,2.91,-.04),new THREE.Vector3(side*.73,2.83,-.25),new THREE.Vector3(side*.75,2.60,-.29),new THREE.Vector3(side*.76,1.69,-.24)]);
+      strapCurves.push({side,curve});
+      clothPatch(8,100,(u,v)=>{const p=curve.getPoint(v);p.x+=side*(u-.5)*.078;return bindPoint(p,.018);},side===-1);
     }
 
     // Rounded piping and small stitched seams are geometry, not a printed grid.
@@ -182,15 +233,16 @@
       const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(points,3).setUsage(THREE.DynamicDrawUsage));geometry.setIndex(faces);const mesh=new THREE.Mesh(geometry,material);mesh.frustumCulled=false;mesh.castShadow=true;model.add(mesh);tubes.push({path,radius,points,geometry,centers:new Float64Array(path.length*3),normals:new Float64Array(path.length*3)});
     }
     for(const side of [-1,1]){
-      for(const v of [0,1])sewnPath(Array.from({length:70},(_,j)=>{const[x,y]=cupXY(side,j/69,v);return bindXY(x,y,.023);}),.007,binding);
-      sewnPath(Array.from({length:55},(_,j)=>{const v=j/54,u=.54+.12*v;const[x,y]=cupXY(side,u,v);return bindXY(x,y,.022);}),.0027,thread);
-      sewnPath(Array.from({length:55},(_,j)=>{const v=j/54,u=.555+.12*v;const[x,y]=cupXY(side,u,v);return bindXY(x,y,.022);}),.0015,thread);
-      sewnPath(Array.from({length:45},(_,j)=>{const[x,y]=cupXY(side,1,j/44);return bindXY(x,y,.023);}),.005,binding);
+      for(const v of [0,1])sewnPath(Array.from({length:85},(_,j)=>bindCup(side,j/84,v,.023)),.006,binding);
+      sewnPath(Array.from({length:55},(_,j)=>{const v=j/54;return bindCup(side,.54+.12*v,v,.022);}),.0022,thread);
+      sewnPath(Array.from({length:55},(_,j)=>{const v=j/54;return bindCup(side,.555+.12*v,v,.022);}),.0013,thread);
+      sewnPath(Array.from({length:45},(_,j)=>bindCup(side,1,j/44,.023)),.003,binding);
+      for(const v of [0,1])sewnPath(Array.from({length:55},(_,j)=>{const u=j/54,theta=side*(1.50+u*1.35),y=(1-u)*(1.61+v*.5892)+u*(1.47+v*.34);return bindTheta(theta,y,.023);}),.004,binding);
     }
-    for(const y of [1.40,1.44])sewnPath(Array.from({length:145},(_,j)=>bindTheta(j/144*Math.PI*2,y+.12*Math.sin(j/144*Math.PI*2)**2,.019)),.002,thread);
+    for(const y of [1.39,1.43])sewnPath(Array.from({length:145},(_,j)=>bindTheta(j/144*Math.PI*2,y+.15*Math.sin(j/144*Math.PI*2)**2,.016)),.0015,thread);
     const fittings=[];
     for(const side of [-1,1]){const hardware=new THREE.Group(),metal=new THREE.MeshStandardMaterial({color:0x4a1824,metalness:.45,roughness:.35});
-      for(const[w,h,x,y]of [[.115,.014,0,.04],[.115,.014,0,-.04],[.014,.08,-.05,0],[.014,.08,.05,0],[.09,.012,0,0]]){const bar=new THREE.Mesh(new RoundedBoxGeometry(w,h,.015,2,.004),metal);bar.position.set(x,y,0);hardware.add(bar);}model.add(hardware);fittings.push({hardware,binding:bindTheta(side*.985,2.61,.031)});
+      for(const[w,h,x,y]of [[.088,.010,0,.032],[.088,.010,0,-.032],[.010,.064,-.039,0],[.010,.064,.039,0],[.068,.009,0,0]]){const bar=new THREE.Mesh(new RoundedBoxGeometry(w,h,.010,2,.003),metal);bar.position.set(x,y,0);hardware.add(bar);}model.add(hardware);fittings.push({hardware,binding:bindPoint(new THREE.Vector3(side*.74,2.65,surfaceZ(side*.74,2.65,true)),.032)});
     }
 
     // A small articulated silicone finger is a neutral contact probe.
@@ -250,8 +302,11 @@
       lambda.fill(0);for(let iteration=0;iteration<ITERATIONS;iteration++){applyContact(bodySurface);solveEdges((tick+iteration)%2===1);if(iteration===ITERATIONS-1)preserveVolume();constrain();}simulateArms(decay);tick++;
     }
     const tangent=new THREE.Vector3(),sideVector=new THREE.Vector3(),normalVector=new THREE.Vector3(),pointVector=new THREE.Vector3(),nextPoint=new THREE.Vector3();
-    function updateGeometry(){surface.set(pos);bodyGeometry.attributes.position.needsUpdate=true;bodyGeometry.computeVertexNormals();
+    function updateGeometry(){surface.set(pos);simulationGeometry.attributes.position.needsUpdate=true;simulationGeometry.computeVertexNormals();
       for(const arm of armSurfaces){arm.g.attributes.position.array.set(arm.pos);arm.g.attributes.position.needsUpdate=true;arm.g.computeVertexNormals();}
+      const skinPositions=bodyGeometry.attributes.position.array,skinNormals=bodyGeometry.attributes.normal.array,simNormals=simulationGeometry.attributes.normal.array;
+      for(let i=0;i<skinBindings.length;i++){const s=skinBindings[i],p=i*3,armNormals=s.arm.g.attributes.normal.array;skinPositions[p]=skinRest[p];skinPositions[p+1]=skinRest[p+1];skinPositions[p+2]=skinRest[p+2];skinNormals[p]=skinRestNormals[p];skinNormals[p+1]=skinRestNormals[p+1];skinNormals[p+2]=skinRestNormals[p+2];for(let j=0;j<4;j++){const bp=s.body.ids[j]*3,bw=s.body.weights[j]*s.bodyWeight,ap=s.ids[j]*3,aw=s.weights[j]*(1-s.bodyWeight);for(let a=0;a<3;a++){skinPositions[p+a]+=(pos[bp+a]-rest[bp+a])*bw+(s.arm.pos[ap+a]-s.arm.rest[ap+a])*aw;skinNormals[p+a]+=(simNormals[bp+a]-simulationRestNormals[bp+a])*bw+(armNormals[ap+a]-s.arm.restNormals[ap+a])*aw;}}const length=Math.sqrt(skinNormals[p]**2+skinNormals[p+1]**2+skinNormals[p+2]**2);for(let a=0;a<3;a++)skinNormals[p+a]/=length;}
+      bodyGeometry.attributes.position.needsUpdate=true;bodyGeometry.attributes.normal.needsUpdate=true;
       for(const part of clothParts){for(let i=0;i<part.bindings.length;i++){readBinding(part.bindings[i]).toArray(part.points,i*3);}part.geometry.attributes.position.needsUpdate=true;part.geometry.computeVertexNormals();}
       for(const item of tubes){const{path,centers,normals,points,radius}=item;for(let i=0;i<path.length;i++){readBinding(path[i],pointVector,normalVector);pointVector.toArray(centers,i*3);normalVector.toArray(normals,i*3);}
         for(let i=0;i<path.length;i++){const a=Math.max(0,i-1),b=Math.min(path.length-1,i+1);tangent.fromArray(centers,b*3).sub(nextPoint.fromArray(centers,a*3)).normalize();normalVector.fromArray(normals,i*3);sideVector.crossVectors(normalVector,tangent).normalize();normalVector.crossVectors(tangent,sideVector).normalize();pointVector.fromArray(centers,i*3);
@@ -265,9 +320,9 @@
     // the underlying surface, including when the camera is moved.
     const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),cursorPoint=new THREE.Vector3();
     function cast(event){const r=canvas.getBoundingClientRect();pointer.set((event.clientX-r.left)/r.width*2-1,-(event.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);}
-    function pick(event){cast(event);return raycaster.intersectObjects([body,...arms,...clothParts.map(p=>p.mesh)],false)[0];}
+    function pick(event){cast(event);return raycaster.intersectObjects([body,...clothParts.map(p=>p.mesh)],false)[0];}
     function finishDrag(){if(!moving)return;const id=moving.id;moving=null;awakeSteps=300;controls.enabled=!touchState;canvas.classList.remove('holding');try{if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);}catch{}}
-    function exposedHit(event){const hit=pick(event);if(!hit)return null;if(hit.object===body)return{hit,surface:bodySurface};const arm=armSurfaces.find(a=>a.mesh===hit.object);return arm?{hit,surface:arm}:null;}
+    function exposedHit(event){const hit=pick(event);if(!hit||hit.object!==body)return null;const p=model.worldToLocal(hit.point.clone()),c=fieldContext(p.y),arm=armDistance(p.x,p.z,c)<torsoDistance(p.x,p.z,c)&&p.y<2.68;return{hit,surface:arm?armSurfaces[p.x<0?0:1]:bodySurface};}
     function tissueLabel(target,id){const y=target.rest[id*3+1],x=target.rest[id*3];if(target!==bodySurface)return Math.abs(y-1.43)<.22?'Elbow · thin, firm layer':y<1.43?'Forearm · moderate response':'Upper arm · soft muscle layer';if(y<1.5)return'Abdomen · compliant layer';if(y>2.5)return'Shoulder / clavicle · firm layer';return Math.abs(x)<.20?'Sternum · firm layer':'Upper chest · soft layer';}
     function makeContact(hit,target,id){const point=model.worldToLocal(hit.point.clone()),normal=hit.face.normal.clone().normalize(),ids=[],weights=[],original=[];let nearest=-1,min=Infinity;
       for(let i=0;i<target.mass.length;i++){if(!target.mass[i])continue;const p=i*3,d=(target.pos[p]-point.x)**2+(target.pos[p+1]-point.y)**2+(target.pos[p+2]-point.z)**2;if(d<min){min=d;nearest=i;}}
