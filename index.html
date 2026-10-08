@@ -257,31 +257,30 @@
     for(let j=0;j<sections.length-1;j++)for(let c=1;c<=2;c++){const h=sections[j+1][0]-sections[j][0],a=sections[j][c],b=sections[j+1][c],m=h*sectionSlopes[j][c-1],n=h*sectionSlopes[j+1][c-1],p=j*8+(c-1)*4;sectionPolynomial[p]=a;sectionPolynomial[p+1]=m;sectionPolynomial[p+2]=-3*a-2*m+3*b-n;sectionPolynomial[p+3]=2*a+m-2*b+n;}
     function section(y){return profileAt(sections,sectionSlopes,y);}
     const armProfile=[[-1.8,1.54,.15],[-.2,1.45,.17],[.5,1.34,.19],[.96,1.25,.225],[1.43,1.18,.211],[1.74,1.13,.238],[2.12,1.05,.271],[2.42,1.01,.29],[2.60,.985,.27],[2.72,.93,.175],[2.80,.80,.01],[2.86,.72,.002]],armSlopes=profileSlopes(armProfile);
-    function fieldContext(y){const[w,d]=section(y),[armX,armR]=profileAt(armProfile,armSlopes,y);return{y,w,d,armX,armR,breastY:((y-1.97)/(y>1.97?.73:.43))**2};}
+    const breastShape={centerX:.350,centerY:2.060,radiusX:.47,upperY:.615,lowerY:.510,centerZ:.435,radiusZ:.590};
+    function fieldContext(y){const[w,d]=section(y),[armX,armR]=profileAt(armProfile,armSlopes,y);return{y,w,d,armX,armR};}
     function smoothUnion(a,b,k){const h=THREE.MathUtils.clamp(.5+.5*(b-a)/k,0,1);return b+(a-b)*h-k*h*(1-h);}
-    function torsoDistance(x,z,c){const front=THREE.MathUtils.smoothstep(z,-.03,.34),throat=.022*Math.exp(-(((Math.abs(x)-(.125+.10*(c.y-2.96)))/.057)**2+((c.y-3.18)/.39)**2)),abdomen=.009*Math.exp(-((x/.15)**2+((c.y-1.1)/.38)**2));let rise=0;
-      // A continuous anterior envelope avoids the intersection ridge made by
-      // unioning two ellipsoids. The upper pole joins the chest gradually;
-      // the lower pole has a shorter, fuller contour under garment support.
-      for(const side of [-1,1]){const cy=1.970,rx=.455,ry=c.y>cy?.725:.447,cx=side*.390,q=((x-cx)/rx)**2+((c.y-cy)/ry)**2;rise+=.560*Math.exp(-1.65*q);}
-      const core=(Math.sqrt((x/c.w)**2+((z-front*(throat-abdomen))/c.d)**2)-1)*c.d;
-      let d=(Math.sqrt((x/c.w)**2+((z-front*(throat-abdomen+rise))/c.d)**2)-1)*c.d,lobes=10;
-      for(const side of [-1,1]){const cy=1.97,rx=.460,ry=c.y>cy?.735:.447,cz=.409+.032*Math.exp(-(((c.y-1.91)/.44)**2)),q=Math.sqrt(((x-side*.390)/rx)**2+((c.y-cy)/ry)**2+((z-cz)/.552)**2);lobes=smoothUnion(lobes,(q-1)*.43,.055);}
-      const rounded=smoothUnion(core,lobes,.14+.06*THREE.MathUtils.smoothstep(c.y,2.10,2.65)),t=THREE.MathUtils.clamp((Math.abs(x)-.12)/.33,0,1),medialBlend=t*t*t*(t*(t*6-15)+10)*(1-THREE.MathUtils.smoothstep(c.y,2.06,2.68));d+=(rounded-d)*medialBlend;
+    function torsoDistance(x,z,c){
+      const front=THREE.MathUtils.smoothstep(z,-.03,.34),throat=.022*Math.exp(-(((Math.abs(x)-(.125+.10*(c.y-2.96)))/.057)**2+((c.y-3.18)/.39)**2)),abdomen=.009*Math.exp(-((x/.15)**2+((c.y-1.1)/.38)**2));
+      const core=(Math.sqrt((x/c.w)**2+((z-front*(throat-abdomen))/c.d)**2)-1)*c.d,b=breastShape,ry=c.y>b.centerY?b.upperY:b.lowerY;let lobes=10;
+      // A broad smooth junction gives the supported volumes rounded medial
+      // contours; all regions belong to the same closed deformable surface.
+      for(const side of [-1,1]){const q=Math.sqrt(((x-side*b.centerX)/b.radiusX)**2+((c.y-b.centerY)/ry)**2+((z-b.centerZ)/b.radiusZ)**2);lobes=smoothUnion(lobes,(q-1)*.43,.115);}
+      const joined=smoothUnion(core,lobes,.10+.06*THREE.MathUtils.smoothstep(c.y,2.25,2.72));let d=THREE.MathUtils.lerp(joined,core,THREE.MathUtils.smoothstep(c.y,2.55,2.88));
       if(z>0&&c.y>2.45&&c.y<3.05){const clavicle=.016*Math.exp(-(((c.y-(2.765-.145*Math.abs(x)-.038*Math.sin(Math.abs(x)*4)))/.070)**2))*Math.exp(-(((Math.abs(x)-.44)/.40)**2)),notch=.015*Math.exp(-((x/.105)**2+((c.y-2.91)/.10)**2));d+=notch-clavicle;}
       return Math.max(d,-.1-c.y,c.y-5);
     }
     function armDistance(x,z,c){const biceps=Math.exp(-(((c.y-2.08)/.31)**2)),elbow=Math.exp(-(((c.y-1.43)/.13)**2)),zCenter=-.020+.023*biceps-.018*elbow,depthScale=.91+.095*biceps-.065*elbow,crease=.0038*Math.exp(-(((c.y-1.435+.16*(Math.abs(x)-c.armX))/.013)**2))*THREE.MathUtils.smoothstep(z,.06,.16);return Math.max(Math.sqrt((Math.abs(x)-c.armX)**2+((z-zCenter)/depthScale)**2)-c.armR+crease,-1.8-c.y,c.y-2.85);}
     function skinDistance(x,z,c,united=false){const t=torsoDistance(x,z,c);return united?smoothUnion(t,armDistance(x,z,c),.14):t;}
     function surfaceZ(x,y,united=false,facing=1){const c=fieldContext(y);let high=1.5,low=0,found=false;
-      for(let i=1;i<=30;i++){const z=1.5-i*.05;if(skinDistance(x,z*facing,c,united)<=0){low=z;found=true;break;}high=z;}
+      for(let i=1;i<=60;i++){const z=1.5-i*.025;if(skinDistance(x,z*facing,c,united)<=0){low=z;found=true;break;}high=z;}
       if(!found)return facing*Math.sqrt(Math.max(0,1-(x/c.w)**2))*c.d;
       for(let i=0;i<17;i++){const z=(low+high)*.5;if(skinDistance(x,z*facing,c,united)<0)low=z;else high=z;}return facing*(low+high)*.5;
     }
     function fieldNormal(x,y,z,united=false){const e=.0015,c=fieldContext(y);return new THREE.Vector3(skinDistance(x+e,z,c,united)-skinDistance(x-e,z,c,united),skinDistance(x,z,fieldContext(y+e),united)-skinDistance(x,z,fieldContext(y-e),united),skinDistance(x,z+e,c,united)-skinDistance(x,z-e,c,united)).normalize();}
     function torsoPoint(theta,y,united=false,context=fieldContext(y)){const dx=Math.sin(theta)*context.w,dz=Math.cos(theta)*context.d;let low=0,high=3;for(let i=0;i<20;i++){const t=(low+high)*.5;if(skinDistance(dx*t,dz*t,context,united)<0)low=t;else high=t;}const t=(low+high)*.5;return new THREE.Vector3(dx*t,y,dz*t);}
-    const cupTop=[[0,1.96,0],[.18,2.095,0],[.4,2.30,0],[.62,2.47,0],[.78,2.50,0],[.9,2.28,0],[1,1.9823,0]],cupBottom=[[0,1.74,0],[.22,1.57,0],[.40,1.50,0],[.68,1.54,0],[1,1.68,0]],cupTopSlopes=profileSlopes(cupTop),cupBottomSlopes=profileSlopes(cupBottom);
-    function cupXY(side,u,v){const x=side*((.075+.775*u)*(1-v)+(.072+.77*u)*v),low=profileAt(cupBottom,cupBottomSlopes,u)[0],high=profileAt(cupTop,cupTopSlopes,u)[0];return[x,low+(high-low)*v];}
+    const cupTop=[[0,2.005,0],[.16,2.14,0],[.36,2.28,0],[.57,2.39,0],[.77,2.445,0],[.91,2.36,0],[1,2.075,0]],cupBottom=[[0,1.765,0],[.20,1.59,0],[.40,1.545,0],[.63,1.58,0],[.84,1.64,0],[1,1.72,0]],cupTopSlopes=profileSlopes(cupTop),cupBottomSlopes=profileSlopes(cupBottom);
+    function cupXY(side,u,v){const x=side*((.055+.795*u)*(1-v)+(.040+.80*u)*v),low=profileAt(cupBottom,cupBottomSlopes,u)[0],high=profileAt(cupTop,cupTopSlopes,u)[0];return[x,low+(high-low)*v];}
     // A volumetric tetrahedral cage carries both skin and garment. Interior rib,
     // spine and arm cores are fixed; each soft cell preserves its own volume.
     const GRID=.115,gridMin=new THREE.Vector3(-1.84,-.71,-.69),gridSize=[33,36,18],NX=gridSize[0],NY=gridSize[1],NZ=gridSize[2],N=NX*NY*NZ;
@@ -297,9 +296,9 @@
     }
     for(let i=0;i<N;i++){if(!nodeUse[i])continue;const p=i*3,x=rest[p],y=rest[p+1],z=rest[p+2],c=fieldContext(y),arm=armDistance(x,z,c)<torsoDistance(x,z,c)&&y<2.71;
       if(arm){const radial=Math.sqrt((Math.abs(x)-c.armX)**2+((z+.015)/.92)**2)/Math.max(.01,c.armR),joint=Math.exp(-(((y-1.43)/.19)**2));soft[i]=.36*(1-.82*joint);spring[i]=180+joint*600;inv[i]=radial>.58&&y<2.63&&y>-.56?1:0;}
-      else{const rib=(x/(c.w*.78))**2+(z/(c.d*.74))**2,breast=Math.exp(-(((Math.abs(x)-.39)/.42)**2+((y-1.99)/.52)**2))*THREE.MathUtils.smoothstep(z,.27,.63),abdomen=.23*Math.exp(-(((y-1.05)/.5)**2))*THREE.MathUtils.smoothstep(z,.07,.29),upper=.17*Math.exp(-(((y-2.54)/.24)**2+((Math.abs(x)-.59)/.44)**2))*THREE.MathUtils.smoothstep(z,.14,.40);
+      else{const rib=(x/(c.w*.78))**2+(z/(c.d*.74))**2,breast=Math.exp(-(((Math.abs(x)-breastShape.centerX)/.44)**2+((y-breastShape.centerY)/.55)**2))*THREE.MathUtils.smoothstep(z,.27,.63),abdomen=.23*Math.exp(-(((y-1.05)/.5)**2))*THREE.MathUtils.smoothstep(z,.07,.29),upper=.17*Math.exp(-(((y-2.54)/.24)**2+((Math.abs(x)-.59)/.44)**2))*THREE.MathUtils.smoothstep(z,.14,.40);
         soft[i]=THREE.MathUtils.clamp(breast+abdomen+upper,.025,1);spring[i]=34+(1-soft[i])*330;inv[i]=rib>.98&&z>-.15&&y>.15&&y<2.82?1:0;
-        supportMask[i]=breast*THREE.MathUtils.smoothstep(z,.34,.69)*(1-THREE.MathUtils.smoothstep(y,2.34,2.52));
+        supportMask[i]=breast*THREE.MathUtils.smoothstep(z,.34,.69)*(1-THREE.MathUtils.smoothstep(y,2.44,2.64));
       }
     }
     pos.set(rest);prev.set(rest);
@@ -395,16 +394,16 @@
     }
     for(const side of [-1,1]){
       clothPatch(96,64,(u,v)=>bindCup(side,u,v),side===-1);
-      clothPatch(40,18,(u,v)=>{const theta=side*(1.50+u*1.35),y=(1-u)*(1.68+v*.3023)+u*(1.58+v*.23);return bindTheta(theta,y,.017);},side===-1);
+      clothPatch(40,18,(u,v)=>{const theta=side*(1.50+u*1.35),y=(1-u)*(1.72+v*.355)+u*(1.58+v*.23);return bindTheta(theta,y,.017);},side===-1);
     }
     const bandY=(theta,v)=>1.38+.15*v+.095*(1-Math.cos(theta))+.08*Math.sin(theta)**2;
     clothPatch(112,8,(u,v)=>{const theta=u*Math.PI*2;return bindTheta(theta,bandY(theta,v),.015);});
     for(const side of [-1,1])clothPatch(64,10,(u,v)=>{const wire=bindCup(side,u,0),[w,d]=section(wire.base.y),theta=Math.atan2(wire.base.x/w,wire.base.z/d),low=bandY(theta,.25),y=low+(wire.base.y-low)*v;return u<=.84?bindXY(wire.base.x,y,.0155):bindTheta(theta,y,.0155);},side===-1);
-    clothPatch(18,28,(u,v)=>bindXY((u-.5)*(.30-.156*v),1.50+.46*v,.017));
+    clothPatch(18,28,(u,v)=>bindXY((u-.5)*(.30-.22*v),1.50+.505*v,.022));
     // Follow a continuous cross-section of the shoulder, rather than projecting
     // a spline onto whichever surface branch happens to be closest.
     function strapRay(side,transverse,theta){const x=side*(.765+transverse),cy=2.38,dy=Math.cos(theta)*.52,dz=Math.sin(theta)*.75;let lo=0,hi=3;for(let j=0;j<24;j++){const t=(lo+hi)*.5;if(skinDistance(x,dz*t,fieldContext(cy+dy*t),true)<0)lo=t;else hi=t;}const t=(lo+hi)*.5;return new THREE.Vector3(x,cy+dy*t,dz*t);}
-    function strapBinding(side,transverse,v,offset=.018){let p;if(v<.21){const attachment=bindCup(side,.765+transverse/.77,1,0).base,shoulder=strapRay(side,transverse,1.54-.21/.67*3.24),t=v/.21;p=attachment.clone().lerp(shoulder,t);p.z=surfaceZ(p.x,p.y,true);}else if(v<=.67)p=strapRay(side,transverse,1.54-v/.67*3.24);else{p=strapRay(side,transverse,-1.70);p.y+=(1.69-p.y)*(v-.67)/.33;p.z=surfaceZ(p.x,p.y,true,-1);}return{...volumeBinding(p),base:p,normal:fieldNormal(p.x,p.y,p.z,true),offset};}
+    function strapBinding(side,transverse,v,offset=.018){let p;if(v<.21){const attachment=bindCup(side,.77+transverse/.80,1,0).base,shoulder=strapRay(side,transverse,1.54-.21/.67*3.24),t=v/.21;p=attachment.clone().lerp(shoulder,t);p.z=surfaceZ(p.x,p.y,true);}else if(v<=.67)p=strapRay(side,transverse,1.54-v/.67*3.24);else{p=strapRay(side,transverse,-1.70);p.y+=(1.69-p.y)*(v-.67)/.33;p.z=surfaceZ(p.x,p.y,true,-1);}return{...volumeBinding(p),base:p,normal:fieldNormal(p.x,p.y,p.z,true),offset};}
     for(const side of [-1,1])clothPatch(8,128,(u,v)=>strapBinding(side,(u-.5)*.078,v),side===-1);
 
     // Rounded piping and small stitched seams are geometry, not a printed grid.
@@ -416,7 +415,7 @@
       for(const v of [0,1])sewnPath(Array.from({length:97},(_,j)=>bindCup(side,j/96,v,.0205)),.0045,binding);
       sewnPath(Array.from({length:55},(_,j)=>{const v=j/54;return bindCup(side,.54+.12*v,v,.021);}),.0015,binding);
       sewnPath(Array.from({length:45},(_,j)=>bindCup(side,1,j/44,.023)),.003,binding);
-      for(const v of [0,1])sewnPath(Array.from({length:55},(_,j)=>{const u=j/54,theta=side*(1.50+u*1.35),y=(1-u)*(1.68+v*.3023)+u*(1.58+v*.23);return bindTheta(theta,y,.023);}),.004,binding);
+      for(const v of [0,1])sewnPath(Array.from({length:55},(_,j)=>{const u=j/54,theta=side*(1.50+u*1.35),y=(1-u)*(1.72+v*.355)+u*(1.58+v*.23);return bindTheta(theta,y,.023);}),.004,binding);
     }
     for(const v of [.09,.23])sewnPath(Array.from({length:145},(_,j)=>{const theta=j/144*Math.PI*2;return bindTheta(theta,bandY(theta,v),.020);}),.0012,thread);
     for(const side of[-1,1])for(const edge of [-1,1])sewnPath(Array.from({length:161},(_,j)=>strapBinding(side,edge*.037,j/160,.018)),.0017,binding);
@@ -583,7 +582,7 @@
     function pick(event){cast(event);return raycaster.intersectObjects([body,...clothParts.map(p=>p.mesh)],false)[0];}
     function finishDrag(){if(!moving)return;const id=moving.id;moving=null;awakeSteps=300;controls.enabled=!touchState;canvas.classList.remove('holding');try{if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);}catch{}}
     function exposedHit(event){const hit=pick(event);if(!hit||hit.object!==body)return null;const p=model.worldToLocal(hit.point.clone());if(p.y>2.91||p.y<-.4)return null;return{hit,surface:bodySurface};}
-    function tissueAt(point){const c=fieldContext(point.y),arm=armDistance(point.x,point.z,c)<torsoDistance(point.x,point.z,c);if(arm)return Math.abs(point.y-1.43)<.22?'Elbow · thin, firm layer':point.y<1.43?'Forearm · moderate response':'Upper arm · soft muscle layer';if(point.y<1.5)return'Abdomen · compliant layer';if(point.y>2.55)return'Shoulder / clavicle · firm layer';return Math.abs(point.x)<.20?'Sternum · firm layer':'Upper chest · soft layer';}
+    function tissueAt(point){const c=fieldContext(point.y),arm=armDistance(point.x,point.z,c)<torsoDistance(point.x,point.z,c);if(arm)return Math.abs(point.y-1.43)<.22?'Elbow · thin, firm layer':point.y<1.43?'Forearm · moderate response':'Upper arm · soft muscle layer';if(point.y<1.5)return'Abdomen · compliant layer';const b=breastShape,ry=point.y>b.centerY?b.upperY:b.lowerY,q=((Math.abs(point.x)-b.centerX)/b.radiusX)**2+((point.y-b.centerY)/ry)**2+((point.z-b.centerZ)/b.radiusZ)**2;if(q<1.35&&point.z>c.d+.08)return'Upper chest · soft layer';if(point.y>2.55)return'Shoulder / clavicle · firm layer';return Math.abs(point.x)<.20?'Sternum · firm layer':'Upper chest · soft layer';}
     function tissueLabel(target,id){return touchState?.label||tissueAt(new THREE.Vector3().fromArray(rest,id*3));}
     function makeContact(hit,target,id){const point=model.worldToLocal(hit.point.clone()),normal=(hit.normal||hit.face.normal).clone().normalize(),ids=[],weights=[],original=[];let nearest=-1,min=Infinity;
       for(const i of activeNodes){const p=i*3,d=(pos[p]-point.x)**2+(pos[p+1]-point.y)**2+(pos[p+2]-point.z)**2;if(d<min){min=d;nearest=i;}}
