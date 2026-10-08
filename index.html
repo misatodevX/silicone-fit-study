@@ -210,22 +210,54 @@
       `));
     };
     silicone.customProgramCacheKey=()=> 'layered-epidermis-v2';
+    // A raised floral jacquard is generated in thread space. The base cloth
+    // stays opaque; the pattern changes fiber color, roughness and relief.
+    const embroideryCanvas=document.createElement('canvas');embroideryCanvas.width=embroideryCanvas.height=1024;
+    const embroideryContext=embroideryCanvas.getContext('2d');
+    embroideryContext.fillStyle='#000';embroideryContext.fillRect(0,0,1024,1024);
+    function stitchedCurve(points,width=5,intensity=185){
+      embroideryContext.beginPath();embroideryContext.moveTo(...points[0]);
+      if(points.length===4)embroideryContext.bezierCurveTo(...points[1],...points[2],...points[3]);
+      else for(let i=1;i<points.length;i++)embroideryContext.lineTo(...points[i]);
+      embroideryContext.strokeStyle='rgb('+intensity+','+intensity+','+intensity+')';embroideryContext.lineWidth=width;embroideryContext.lineCap='round';embroideryContext.stroke();
+    }
+    for(let iy=-1;iy<=2;iy++)for(let ix=-1;ix<=2;ix++){
+      const cx=ix*512+(iy%2?180:50),cy=iy*512+190;
+      for(let petal=0;petal<7;petal++){
+        const a=petal*Math.PI*2/7,dx=Math.cos(a),dy=Math.sin(a),nx=-dy,ny=dx;
+        for(let inset=0;inset<4;inset++){
+          const length=113-inset*14,width=43-inset*8;
+          stitchedCurve([[cx+dx*20,cy+dy*20],[cx+dx*length*.40+nx*width,cy+dy*length*.40+ny*width],[cx+dx*length+nx*width*.28,cy+dy*length+ny*width*.28],[cx+dx*length,cy+dy*length]],3.2,155+inset*20);
+          stitchedCurve([[cx+dx*20,cy+dy*20],[cx+dx*length*.40-nx*width,cy+dy*length*.40-ny*width],[cx+dx*length-nx*width*.28,cy+dy*length-ny*width*.28],[cx+dx*length,cy+dy*length]],3.2,155+inset*20);
+        }
+      }
+      stitchedCurve([[cx+30,cy+32],[cx+166,cy+84],[cx+170,cy+209],[cx+224,cy+315]],5.5,190);
+      for(let leaf=0;leaf<6;leaf++)for(const sign of [-1,1]){
+        const y=cy+94+leaf*34,x=cx+112+leaf*17,ex=x+sign*(48-leaf*3),ey=y-24;
+        stitchedCurve([[x,y],[ex,y-58],[ex+sign*25,ey-22],[ex,ey]],3.5,195);
+        stitchedCurve([[x,y],[x+sign*16,y-6],[ex+sign*25,ey+4],[ex,ey]],3.5,180);
+        stitchedCurve([[x,y],[ex,ey]],2.2,165);
+      }
+      for(let r=0;r<3;r++){embroideryContext.beginPath();embroideryContext.arc(cx,cy,12+r*6,0,Math.PI*2);embroideryContext.strokeStyle='#c5c5c5';embroideryContext.lineWidth=3;embroideryContext.stroke();}
+    }
+    const embroideryTexture=new THREE.CanvasTexture(embroideryCanvas);embroideryTexture.wrapS=embroideryTexture.wrapT=THREE.RepeatWrapping;embroideryTexture.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy());
     const fabric=new THREE.MeshPhysicalMaterial({color:0xffffff,roughness:.72,metalness:0,ior:1.46,specularIntensity:.3,sheen:.48,sheenColor:0xce7f89,sheenRoughness:.65,envMapIntensity:.35,side:THREE.DoubleSide});
     fabric.onBeforeCompile=shader=>{
-      shader.uniforms.weave={value:fabricTexture};shader.uniforms.fabricAlbedo={value:fabricAlbedo};
+      shader.uniforms.weave={value:fabricTexture};shader.uniforms.fabricAlbedo={value:fabricAlbedo};shader.uniforms.embroidery={value:embroideryTexture};
       shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec2 vWeave;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWeave=uv;');
-      shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D weave,fabricAlbedo; varying vec2 vWeave;').replace('#include <map_fragment>',/* glsl */`#include <map_fragment>
+      shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D weave,fabricAlbedo,embroidery; varying vec2 vWeave;').replace('#include <map_fragment>',/* glsl */`#include <map_fragment>
         vec4 fiber=texture2D(weave,vWeave*3.0,.35);
         vec2 texelFootprint=max(abs(dFdx(vWeave)),abs(dFdy(vWeave)))*3072.0;
         float weaveVisibility=1.0-smoothstep(3.0,8.0,max(texelFootprint.x,texelFootprint.y));
         vec3 knit=texture2D(fabricAlbedo,vWeave*9.6).rgb;
-        diffuseColor.rgb*=knit;
+        float brocade=texture2D(embroidery,vWeave*1.65).r;
+        diffuseColor.rgb*=knit*(1.0+brocade*.38);
         float knitHeight=dot(knit,vec3(.299,.587,.114));
-      `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor+(fiber.g-.5)*.24,.55,.82);').replace('#include <normal_fragment_maps>',/* glsl */`#include <normal_fragment_maps>
+      `).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor+(fiber.g-.5)*.24+brocade*.07,.55,.86);').replace('#include <normal_fragment_maps>',/* glsl */`#include <normal_fragment_maps>
         vec3 sigmaX=dFdx(-vViewPosition),sigmaY=dFdy(-vViewPosition);
         vec3 r1=cross(sigmaY,normal),r2=cross(normal,sigmaX);
-        float det=dot(sigmaX,r1),height=fiber.b*.00028+knitHeight*.00028;
-        normal=normalize(abs(det)*normal-sign(det)*weaveVisibility*(dFdx(height)*r1+dFdy(height)*r2));
+        float det=dot(sigmaX,r1),height=(fiber.b*.00028+knitHeight*.00028)*weaveVisibility+brocade*.00048;
+        normal=normalize(abs(det)*normal-sign(det)*(dFdx(height)*r1+dFdy(height)*r2));
       `);
       // r170's rectangular-light path omits cloth sheen. Approximate the
       // Charlie fiber lobe using the rectangle's solid angle and center.
@@ -243,7 +275,7 @@
         #endif
       `));
     };
-    fabric.customProgramCacheKey=()=> 'tricot-fiber-ltc-v2';
+    fabric.customProgramCacheKey=()=> 'opaque-floral-jacquard-v3';
     const binding=new THREE.MeshStandardMaterial({color:0x962138,roughness:.82});
     const thread=new THREE.MeshStandardMaterial({color:0xab4a59,roughness:.9});
 
@@ -257,16 +289,25 @@
     for(let j=0;j<sections.length-1;j++)for(let c=1;c<=2;c++){const h=sections[j+1][0]-sections[j][0],a=sections[j][c],b=sections[j+1][c],m=h*sectionSlopes[j][c-1],n=h*sectionSlopes[j+1][c-1],p=j*8+(c-1)*4;sectionPolynomial[p]=a;sectionPolynomial[p+1]=m;sectionPolynomial[p+2]=-3*a-2*m+3*b-n;sectionPolynomial[p+3]=2*a+m-2*b+n;}
     function section(y){return profileAt(sections,sectionSlopes,y);}
     const armProfile=[[-1.8,1.54,.15],[-.2,1.45,.17],[.5,1.34,.19],[.96,1.25,.225],[1.43,1.18,.211],[1.74,1.13,.238],[2.12,1.05,.271],[2.42,1.01,.29],[2.60,.985,.27],[2.72,.93,.175],[2.80,.80,.01],[2.86,.72,.002]],armSlopes=profileSlopes(armProfile);
-    const breastShape={centerX:.350,centerY:2.060,radiusX:.47,upperY:.615,lowerY:.510,centerZ:.435,radiusZ:.590};
+    const breastShape={centerX:.375,centerY:2.145,radiusX:.465,upperY:.655,lowerY:.580,centerZ:.400,radiusZ:.595};
+    function supportedSection(y){
+      const b=breastShape,dy=y-b.centerY;
+      // The upper root spreads laterally; the outer pole is wider than
+      // the supported medial wall. Their front surfaces never overlap.
+      const cx=b.centerX+.110*dy,rxOuter=b.radiusX-.025*THREE.MathUtils.smoothstep(y,2.32,2.78),rxInner=.372;
+      return{cx,rxOuter,rxInner,ry:dy>0?b.upperY:b.lowerY,z:b.centerZ+.020*THREE.MathUtils.smoothstep(y,2.1,2.55)};
+    }
     function fieldContext(y){const[w,d]=section(y),[armX,armR]=profileAt(armProfile,armSlopes,y);return{y,w,d,armX,armR};}
     function smoothUnion(a,b,k){const h=THREE.MathUtils.clamp(.5+.5*(b-a)/k,0,1);return b+(a-b)*h-k*h*(1-h);}
     function torsoDistance(x,z,c){
       const front=THREE.MathUtils.smoothstep(z,-.03,.34),throat=.022*Math.exp(-(((Math.abs(x)-(.125+.10*(c.y-2.96)))/.057)**2+((c.y-3.18)/.39)**2)),abdomen=.009*Math.exp(-((x/.15)**2+((c.y-1.1)/.38)**2));
-      const core=(Math.sqrt((x/c.w)**2+((z-front*(throat-abdomen))/c.d)**2)-1)*c.d,b=breastShape,ry=c.y>b.centerY?b.upperY:b.lowerY;let lobes=10;
-      // A broad smooth junction gives the supported volumes rounded medial
-      // contours; all regions belong to the same closed deformable surface.
-      for(const side of [-1,1]){const q=Math.sqrt(((x-side*b.centerX)/b.radiusX)**2+((c.y-b.centerY)/ry)**2+((z-b.centerZ)/b.radiusZ)**2);lobes=smoothUnion(lobes,(q-1)*.43,.115);}
-      const joined=smoothUnion(core,lobes,.10+.06*THREE.MathUtils.smoothstep(c.y,2.25,2.72));let d=THREE.MathUtils.lerp(joined,core,THREE.MathUtils.smoothstep(c.y,2.55,2.88));
+      const core=(Math.sqrt((x/c.w)**2+((z-front*(throat-abdomen))/c.d)**2)-1)*c.d,b=breastShape,s=supportedSection(c.y);let lobes=10;
+      for(const side of [-1,1]){
+        const dx=side*x-s.cx,rx=dx<0?s.rxInner:s.rxOuter;
+        const q=Math.sqrt((dx/rx)**2+((c.y-b.centerY)/s.ry)**2+((z-s.z)/b.radiusZ)**2);
+        lobes=smoothUnion(lobes,(q-1)*.43,.028);
+      }
+      const joined=smoothUnion(core,lobes,.15);let d=THREE.MathUtils.lerp(joined,core,THREE.MathUtils.smootherstep(c.y,2.50,3.00));
       if(z>0&&c.y>2.45&&c.y<3.05){const clavicle=.016*Math.exp(-(((c.y-(2.765-.145*Math.abs(x)-.038*Math.sin(Math.abs(x)*4)))/.070)**2))*Math.exp(-(((Math.abs(x)-.44)/.40)**2)),notch=.015*Math.exp(-((x/.105)**2+((c.y-2.91)/.10)**2));d+=notch-clavicle;}
       return Math.max(d,-.1-c.y,c.y-5);
     }
@@ -279,8 +320,8 @@
     }
     function fieldNormal(x,y,z,united=false){const e=.0015,c=fieldContext(y);return new THREE.Vector3(skinDistance(x+e,z,c,united)-skinDistance(x-e,z,c,united),skinDistance(x,z,fieldContext(y+e),united)-skinDistance(x,z,fieldContext(y-e),united),skinDistance(x,z+e,c,united)-skinDistance(x,z-e,c,united)).normalize();}
     function torsoPoint(theta,y,united=false,context=fieldContext(y)){const dx=Math.sin(theta)*context.w,dz=Math.cos(theta)*context.d;let low=0,high=3;for(let i=0;i<20;i++){const t=(low+high)*.5;if(skinDistance(dx*t,dz*t,context,united)<0)low=t;else high=t;}const t=(low+high)*.5;return new THREE.Vector3(dx*t,y,dz*t);}
-    const cupTop=[[0,2.005,0],[.16,2.14,0],[.36,2.28,0],[.57,2.39,0],[.77,2.445,0],[.91,2.36,0],[1,2.075,0]],cupBottom=[[0,1.765,0],[.20,1.59,0],[.40,1.545,0],[.63,1.58,0],[.84,1.64,0],[1,1.72,0]],cupTopSlopes=profileSlopes(cupTop),cupBottomSlopes=profileSlopes(cupBottom);
-    function cupXY(side,u,v){const x=side*((.055+.795*u)*(1-v)+(.040+.80*u)*v),low=profileAt(cupBottom,cupBottomSlopes,u)[0],high=profileAt(cupTop,cupTopSlopes,u)[0];return[x,low+(high-low)*v];}
+    const cupTop=[[0,1.940,0],[.09,2.175,0],[.24,2.320,0],[.43,2.410,0],[.62,2.510,0],[.80,2.600,0],[.92,2.475,0],[1,2.140,0]],cupBottom=[[0,1.755,0],[.20,1.585,0],[.43,1.570,0],[.67,1.61,0],[.84,1.67,0],[1,1.735,0]],cupTopSlopes=profileSlopes(cupTop),cupBottomSlopes=profileSlopes(cupBottom);
+    function cupXY(side,u,v){const x=side*((.036+.840*u)*(1-v)+(.018+.858*u)*v),low=profileAt(cupBottom,cupBottomSlopes,u)[0],high=profileAt(cupTop,cupTopSlopes,u)[0];return[x,low+(high-low)*v];}
     // A volumetric tetrahedral cage carries both skin and garment. Interior rib,
     // spine and arm cores are fixed; each soft cell preserves its own volume.
     const GRID=.115,gridMin=new THREE.Vector3(-1.84,-.71,-.69),gridSize=[33,36,18],NX=gridSize[0],NY=gridSize[1],NZ=gridSize[2],N=NX*NY*NZ;
@@ -394,16 +435,16 @@
     }
     for(const side of [-1,1]){
       clothPatch(96,64,(u,v)=>bindCup(side,u,v),side===-1);
-      clothPatch(40,18,(u,v)=>{const theta=side*(1.50+u*1.35),y=(1-u)*(1.72+v*.355)+u*(1.58+v*.23);return bindTheta(theta,y,.017);},side===-1);
+      clothPatch(40,18,(u,v)=>{const theta=side*(1.50+u*1.35),y=(1-u)*(1.735+v*.405)+u*(1.57+v*.25);return bindTheta(theta,y,.017);},side===-1);
     }
-    const bandY=(theta,v)=>1.38+.15*v+.095*(1-Math.cos(theta))+.08*Math.sin(theta)**2;
+    const bandY=(theta,v)=>1.39+.160*v+.085*(1-Math.cos(theta))+.065*Math.sin(theta)**2;
     clothPatch(112,8,(u,v)=>{const theta=u*Math.PI*2;return bindTheta(theta,bandY(theta,v),.015);});
     for(const side of [-1,1])clothPatch(64,10,(u,v)=>{const wire=bindCup(side,u,0),[w,d]=section(wire.base.y),theta=Math.atan2(wire.base.x/w,wire.base.z/d),low=bandY(theta,.25),y=low+(wire.base.y-low)*v;return u<=.84?bindXY(wire.base.x,y,.0155):bindTheta(theta,y,.0155);},side===-1);
-    clothPatch(18,28,(u,v)=>bindXY((u-.5)*(.30-.22*v),1.50+.505*v,.022));
+    clothPatch(18,28,(u,v)=>bindXY((u-.5)*(.26-.224*v),1.535+.405*v,.022));
     // Follow a continuous cross-section of the shoulder, rather than projecting
     // a spline onto whichever surface branch happens to be closest.
-    function strapRay(side,transverse,theta){const x=side*(.765+transverse),cy=2.38,dy=Math.cos(theta)*.52,dz=Math.sin(theta)*.75;let lo=0,hi=3;for(let j=0;j<24;j++){const t=(lo+hi)*.5;if(skinDistance(x,dz*t,fieldContext(cy+dy*t),true)<0)lo=t;else hi=t;}const t=(lo+hi)*.5;return new THREE.Vector3(x,cy+dy*t,dz*t);}
-    function strapBinding(side,transverse,v,offset=.018){let p;if(v<.21){const attachment=bindCup(side,.77+transverse/.80,1,0).base,shoulder=strapRay(side,transverse,1.54-.21/.67*3.24),t=v/.21;p=attachment.clone().lerp(shoulder,t);p.z=surfaceZ(p.x,p.y,true);}else if(v<=.67)p=strapRay(side,transverse,1.54-v/.67*3.24);else{p=strapRay(side,transverse,-1.70);p.y+=(1.69-p.y)*(v-.67)/.33;p.z=surfaceZ(p.x,p.y,true,-1);}return{...volumeBinding(p),base:p,normal:fieldNormal(p.x,p.y,p.z,true),offset};}
+    function strapRay(side,transverse,theta){const x=side*(.705+transverse),cy=2.44,dy=Math.cos(theta)*.52,dz=Math.sin(theta)*.75;let lo=0,hi=3;for(let j=0;j<24;j++){const t=(lo+hi)*.5;if(skinDistance(x,dz*t,fieldContext(cy+dy*t),true)<0)lo=t;else hi=t;}const t=(lo+hi)*.5;return new THREE.Vector3(x,cy+dy*t,dz*t);}
+    function strapBinding(side,transverse,v,offset=.018){let p;if(v<.21){const attachment=bindCup(side,.80+transverse/.858,1,0).base,shoulder=strapRay(side,transverse,1.54-.21/.67*3.24),t=v/.21;p=attachment.clone().lerp(shoulder,t);p.z=surfaceZ(p.x,p.y,true);}else if(v<=.67)p=strapRay(side,transverse,1.54-v/.67*3.24);else{p=strapRay(side,transverse,-1.70);p.y+=(1.69-p.y)*(v-.67)/.33;p.z=surfaceZ(p.x,p.y,true,-1);}return{...volumeBinding(p),base:p,normal:fieldNormal(p.x,p.y,p.z,true),offset};}
     for(const side of [-1,1])clothPatch(8,128,(u,v)=>strapBinding(side,(u-.5)*.078,v),side===-1);
 
     // Rounded piping and small stitched seams are geometry, not a printed grid.
@@ -415,10 +456,42 @@
       for(const v of [0,1])sewnPath(Array.from({length:97},(_,j)=>bindCup(side,j/96,v,.0205)),.0045,binding);
       sewnPath(Array.from({length:55},(_,j)=>{const v=j/54;return bindCup(side,.54+.12*v,v,.021);}),.0015,binding);
       sewnPath(Array.from({length:45},(_,j)=>bindCup(side,1,j/44,.023)),.003,binding);
-      for(const v of [0,1])sewnPath(Array.from({length:55},(_,j)=>{const u=j/54,theta=side*(1.50+u*1.35),y=(1-u)*(1.72+v*.355)+u*(1.58+v*.23);return bindTheta(theta,y,.023);}),.004,binding);
+      for(const v of [0,1])sewnPath(Array.from({length:55},(_,j)=>{const u=j/54,theta=side*(1.50+u*1.35),y=(1-u)*(1.735+v*.405)+u*(1.57+v*.25);return bindTheta(theta,y,.023);}),.004,binding);
     }
     for(const v of [.09,.23])sewnPath(Array.from({length:145},(_,j)=>{const theta=j/144*Math.PI*2;return bindTheta(theta,bandY(theta,v),.020);}),.0012,thread);
     for(const side of[-1,1])for(const edge of [-1,1])sewnPath(Array.from({length:161},(_,j)=>strapBinding(side,edge*.037,j/160,.018)),.0017,binding);
+    // Embroidered scallops follow the actual cup and underband surfaces.
+    // All curves use the same cage bindings as the sewn garment.
+    const embroideryThread=new THREE.MeshPhysicalMaterial({color:0xb99c86,roughness:.82,metalness:0,ior:1.46,specularIntensity:.20,sheen:.32,sheenColor:0xffddc2,sheenRoughness:.8});
+    const trimBase=new THREE.MeshPhysicalMaterial({color:0x692235,roughness:.82,sheen:.35,sheenColor:0xb5697d,side:THREE.DoubleSide});
+    const trimArc=[],trimDistances=[0];let trimLength=0,trimPrevious=null;
+    for(let j=0;j<=512;j++){const p=bindCup(1,j/512,1,0).base;if(trimPrevious)trimLength+=p.distanceTo(trimPrevious);trimArc.push(j/512);trimDistances[j]=trimLength;trimPrevious=p;}
+    function trimParameter(t){const distance=THREE.MathUtils.clamp(t,0,1)*trimLength;let lo=0,hi=512;while(hi-lo>1){const m=(lo+hi)>>1;if(trimDistances[m]<distance)lo=m;else hi=m;}return THREE.MathUtils.lerp(trimArc[lo],trimArc[hi],(distance-trimDistances[lo])/Math.max(.000001,trimDistances[hi]-trimDistances[lo]));}
+    function trimBinding(side,u,height,offset=.022){
+      u=trimParameter(u);
+      const low=profileAt(cupBottom,cupBottomSlopes,u)[0],high=profileAt(cupTop,cupTopSlopes,u)[0];
+      return bindCup(side,u,1+height/(high-low),offset);
+    }
+    for(const side of [-1,1]){
+      // The continuous backing follows a gently scalloped edge.
+      clothPatch(224,8,(u,v)=>{const crest=.044+.017*Math.sin(u*32*Math.PI);return trimBinding(side,u,-.026+v*(crest+.026),.023);},side===-1,trimBase);
+      for(const strand of [0,1,2])sewnPath(Array.from({length:321},(_,j)=>{
+        const u=j/320,phase=u*32*Math.PI;
+        return trimBinding(side,u,.014+strand*.009+.017*Math.sin(phase),.026+strand*.0005);
+      }),.0022,embroideryThread);
+      for(let loop=0;loop<16;loop++){
+        const center=(loop+.5)/16;
+        sewnPath(Array.from({length:33},(_,j)=>{const a=j/32*Math.PI*2,u=THREE.MathUtils.clamp(center+.028*Math.cos(a),.001,.999),height=.007+.023*Math.sin(a);return trimBinding(side,u,height,.027);}),.0021,embroideryThread);
+      }
+    }
+    for(const strand of [0,1,2])sewnPath(Array.from({length:321},(_,j)=>{
+      const t=j/320,theta=(t-.5)*2.96,v=.26+strand*.082+.11*Math.sin(t*30*Math.PI);
+      return bindTheta(theta,bandY(theta,v),.023+strand*.0005);
+    }),.0022,embroideryThread);
+    for(let loop=0;loop<15;loop++)sewnPath(Array.from({length:33},(_,j)=>{
+      const a=j/32*Math.PI*2,t=(loop+.5)/15+.030*Math.cos(a);
+      return bindTheta((t-.5)*2.96,bandY((t-.5)*2.96,.34+.18*Math.sin(a)),.026);
+    }),.0021,embroideryThread);
     const stitchBindings=[];
     function stitches(count,mapper){for(let j=0;j<count;j++){const a=(j+.22)/count,b=(j+.77)/count;stitchBindings.push([mapper(a),mapper(b)]);}}
     for(const side of [-1,1]){
