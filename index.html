@@ -28,21 +28,21 @@
     #loading.done{opacity:0;pointer-events:none}.spinner{width:23px;height:23px;margin:auto;border:1px solid #694d3920;border-top-color:#944653;border-radius:50%;animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
     #loading.error .spinner{display:none}#loading.error{padding:28px;line-height:1.7}
     @media(max-width:780px){.label{top:18px;left:18px}#ui{width:calc(100% - 24px);bottom:max(12px,env(safe-area-inset-bottom))}.toolbar{gap:9px;flex-wrap:wrap;justify-content:space-between}.divider{display:none}.modes{flex:1;justify-content:center}button{font-size:10px;padding:9px 10px}.setting{gap:6px}input[type=range]{width:64px}#hint{font-size:10px}}
-    @media(max-aspect-ratio:4/5){#stage{inset:auto 0 auto;top:calc(50% - 65px);height:min(130vw,calc(100dvh - 170px));transform:translateY(-50%);}}
+    /* The scene fills the viewport, including portrait screens. */
   </style>
   <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
 </head>
 <body>
-  <canvas id="stage" tabindex="0" aria-label="Adult silicone display mannequin wearing an opaque red bra. Touch mode presses exposed silicone with a fingertip. Move mode moves the whole mannequin. Camera mode rotates the view. H hides controls; R resets."></canvas>
+  <canvas id="stage" tabindex="0" aria-label="Adult silicone display mannequin wearing an opaque red bra. Touch mode presses exposed silicone with a fingertip. Move mode adjusts the supported soft region while the torso stays fixed. Camera mode rotates horizontally. H hides controls; R resets."></canvas>
   <div class="label interface"><span>FORM / 01</span><small>Bra fit &amp; support study</small></div>
   <div id="ui" class="interface">
     <p id="hint">Hold on exposed silicone to press · release to recover · right-drag to orbit</p>
     <div class="toolbar" role="toolbar" aria-label="Fit study controls">
       <div class="modes" role="group" aria-label="View and motion">
         <button id="touch" aria-pressed="true" title="Press exposed silicone with the fingertip">Touch</button>
-        <button id="move" aria-pressed="false" title="Move the whole mannequin to observe material response">Move</button>
-        <button id="motion" aria-pressed="false" title="Gentle body motion to compare garment support">Motion</button>
-        <button id="cameraMode" aria-pressed="false" title="Drag to orbit; scroll or pinch to zoom">Camera</button>
+        <button id="move" aria-pressed="false" title="Drag the supported area; the torso stays fixed">Move</button>
+        <button id="motion" aria-pressed="false" title="Gentle support response with a fixed torso">Motion</button>
+        <button id="cameraMode" aria-pressed="false" title="Drag horizontally to turn; scroll or pinch for a closer view">Camera</button>
       </div>
       <span class="divider"></span>
       <div class="setting"><label for="support">Support<output id="supportValue">60</output></label><input id="support" type="range" min="0" max="100" value="60" aria-label="Garment support"></div>
@@ -72,10 +72,15 @@
     const scene=new THREE.Scene(),model=new THREE.Group();scene.add(model);let needsRender=true;
     const camera=new THREE.PerspectiveCamera(29,canvas.clientWidth/canvas.clientHeight,.05,40);
     const controls=new OrbitControls(camera,canvas);controls.target.set(0,2.19,.36);controls.enablePan=false;controls.enableDamping=true;controls.dampingFactor=.095;
-    controls.minPolarAngle=.72;controls.maxPolarAngle=Math.PI*.53;controls.rotateSpeed=.5;controls.zoomSpeed=.6;controls.minDistance=2.9;controls.maxDistance=7.5;
+    const portraitPolar=Math.PI/2-.045;controls.minPolarAngle=controls.maxPolarAngle=portraitPolar;controls.minAzimuthAngle=-.48;controls.maxAzimuthAngle=.48;controls.rotateSpeed=.42;controls.zoomSpeed=.5;controls.minDistance=3.15;controls.maxDistance=4.42;controls.zoomToCursor=false;
     controls.mouseButtons.LEFT=null;controls.mouseButtons.MIDDLE=THREE.MOUSE.DOLLY;controls.mouseButtons.RIGHT=THREE.MOUSE.ROTATE;
     controls.touches.ONE=null;controls.touches.TWO=THREE.TOUCH.DOLLY_ROTATE;
-    function frame(){controls.target.set(0,1.62,.36);const d=Math.max(5.35,2.45/(2*Math.tan(THREE.MathUtils.degToRad(29/2))*camera.aspect)+.4);camera.position.copy(controls.target).addScaledVector(new THREE.Vector3(0,.34,1).normalize(),d);controls.maxDistance=Math.max(7.5,d*1.25);controls.update();needsRender=true;}
+    function frame(){
+      controls.target.set(0,2.045,.36);
+      controls.minDistance=3.15;controls.maxDistance=4.42;
+      camera.position.copy(controls.target).add(new THREE.Vector3(0,Math.cos(portraitPolar),Math.sin(portraitPolar)).multiplyScalar(4.42));
+      controls.update();needsRender=true;
+    }
     frame();
 
     // Procedural studio cards; original surface maps are embedded in this file.
@@ -432,13 +437,25 @@
       pos[p]+=g0x*dl*ma;pos[p+1]+=g0y*dl*ma;pos[p+2]+=g0z*dl*ma;pos[q]+=g1x*dl*mb;pos[q+1]+=g1y*dl*mb;pos[q+2]+=g1z*dl*mb;pos[r]+=g2x*dl*mc;pos[r+1]+=g2y*dl*mc;pos[r+2]+=g2z*dl*mc;pos[s]+=g3x*dl*md;pos[s+1]+=g3y*dl*md;pos[s+2]+=g3z*dl*md;
     }}
     function applyContact(){const contact=touchState;if(!contact)return;const n=contact.normal;for(let j=0;j<contact.ids.length;j++){const i=contact.ids[j],p=i*3,w=contact.weights[j],op=j*3,displacement=(pos[p]-contact.original[op])*n.x+(pos[p+1]-contact.original[op+1])*n.y+(pos[p+2]-contact.original[op+2])*n.z,target=-contact.depth*contact.level*w,correction=THREE.MathUtils.clamp((target-displacement)*.18*w,-.0015,.0015);pos[p]+=n.x*correction;pos[p+1]+=n.y*correction;pos[p+2]+=n.z*correction;}}
-    function simulate(){time+=DT;if(touchState)touchState.level+=(.35+pressure*.75-touchState.level)*(1-Math.exp(-DT*12));
-      if(!settling){if(moving)motionTarget.copy(rootTarget);else if(motion)motionTarget.set(Math.sin(time*2.05)*.057,Math.sin(time*4.1)*.024,Math.sin(time*2.05+.4)*.012);else motionTarget.copy(zero);
-        rootAcceleration.copy(motionTarget).sub(root).multiplyScalar(moving?110:62).addScaledVector(rootVelocity,moving?-16:-10);if(rootAcceleration.length()>5)rootAcceleration.setLength(5);rootVelocity.addScaledVector(rootAcceleration,DT);root.addScaledVector(rootVelocity,DT);model.position.copy(root);
-      }else rootAcceleration.set(0,0,0);
+    function applyMaterialDrag(){
+      if(!moving)return;
+      for(let j=0;j<moving.ids.length;j++){
+        const i=moving.ids[j],p=i*3,w=moving.weights[j],strength=.09*w;
+        for(let a=0;a<3;a++){
+          const target=moving.original[j*3+a]+rootTarget.getComponent(a)*w*moving.level;
+          pos[p+a]+=THREE.MathUtils.clamp((target-pos[p+a])*strength,-.0009,.0009);
+        }
+      }
+    }
+    function simulate(){time+=DT;if(moving)moving.level+=(1-moving.level)*(1-Math.exp(-DT*14));if(touchState)touchState.level+=(.35+pressure*.75-touchState.level)*(1-Math.exp(-DT*12));
+      // The display core never translates. Motion supplies only a bounded
+      // acceleration to the supported soft volume, not to the whole body.
+      root.set(0,0,0);rootVelocity.set(0,0,0);model.position.set(0,0,0);
+      if(!settling&&motion)rootAcceleration.set(Math.sin(time*2.05)*.85,Math.sin(time*4.1)*.50,Math.sin(time*2.05+.4)*.20);
+      else rootAcceleration.set(0,0,0);
       const decay=Math.exp(-DT*5.6);
-      for(const i of activeNodes){const p=i*3,k=spring[i]+support*supportMask[i]*260;for(let a=0;a<3;a++){const velocity=THREE.MathUtils.clamp((pos[p+a]-prev[p+a])*decay,-.007,.007),acceleration=(rest[p+a]-pos[p+a])*k-(a===0?rootAcceleration.x:a===1?rootAcceleration.y:rootAcceleration.z)*soft[i]*1.8-(a===1?.8*soft[i]:0);prev[p+a]=pos[p+a];pos[p+a]+=velocity+acceleration*DT*DT;}}
-      edgeLambda.fill(0);volLambda.fill(0);for(let i=0;i<ITERATIONS;i++){applyContact();solveEdges((tick+i)%2===1);solveVolumes((tick+i)%2===1);}
+      for(const i of activeNodes){const p=i*3,k=spring[i]+support*supportMask[i]*260;for(let a=0;a<3;a++){const velocity=THREE.MathUtils.clamp((pos[p+a]-prev[p+a])*decay,-.007,.007),acceleration=(rest[p+a]-pos[p+a])*k-(a===0?rootAcceleration.x:a===1?rootAcceleration.y:rootAcceleration.z)*supportMask[i]*1.8-(a===1?.8*soft[i]:0);prev[p+a]=pos[p+a];pos[p+a]+=velocity+acceleration*DT*DT;}}
+      edgeLambda.fill(0);volLambda.fill(0);for(let i=0;i<ITERATIONS;i++){applyContact();applyMaterialDrag();solveEdges((tick+i)%2===1);solveVolumes((tick+i)%2===1);}
       for(const i of activeNodes){const p=i*3,d=Math.hypot(pos[p]-rest[p],pos[p+1]-rest[p+1],pos[p+2]-rest[p+2]);if(d>.09){const s=.09/d;for(let a=0;a<3;a++)pos[p+a]=rest[p+a]+(pos[p+a]-rest[p+a])*s;}}
       tick++;
     }
@@ -787,7 +804,12 @@
     const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),cursorPoint=new THREE.Vector3();
     function cast(event){const r=canvas.getBoundingClientRect();pointer.set((event.clientX-r.left)/r.width*2-1,-(event.clientY-r.top)/r.height*2+1);raycaster.setFromCamera(pointer,camera);}
     function pick(event){cast(event);return raycaster.intersectObjects([body,...clothParts.map(p=>p.mesh)],false)[0];}
-    function finishDrag(){if(!moving)return;const id=moving.id;moving=null;awakeSteps=300;controls.enabled=!touchState;canvas.classList.remove('holding');try{if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);}catch{}}
+    function finishDrag(){if(!moving)return;const id=moving.id;moving=null;rootTarget.set(0,0,0);awakeSteps=300;controls.enabled=!touchState;canvas.classList.remove('holding');try{if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);}catch{}}
+    function supportedHit(event){
+      const hit=pick(event);if(!hit)return null;const p=model.worldToLocal(hit.point.clone()),b=breastShape;
+      const q=((Math.abs(p.x)-b.centerX)/b.radiusX)**2+((p.y-b.centerY)/.53)**2;
+      return p.z>.47&&p.y>1.64&&p.y<2.57&&Math.abs(p.x)>.10&&q<1.18?hit:null;
+    }
     function exposedHit(event){const hit=pick(event);if(!hit||hit.object!==body)return null;const p=model.worldToLocal(hit.point.clone());if(p.y>2.91||p.y<-.4)return null;return{hit,surface:bodySurface};}
     function tissueAt(point){const c=fieldContext(point.y),arm=armDistance(point.x,point.z,c)<torsoDistance(point.x,point.z,c);if(arm)return Math.abs(point.y-1.43)<.22?'Elbow · thin, firm layer':point.y<1.43?'Forearm · moderate response':'Upper arm · soft muscle layer';if(point.y<1.5)return'Abdomen · compliant layer';const b=breastShape,ry=point.y>b.centerY?b.upperY:b.lowerY,q=((Math.abs(point.x)-b.centerX)/b.radiusX)**2+((point.y-b.centerY)/ry)**2+((point.z-b.centerZ)/b.radiusZ)**2;if(q<1.35&&point.z>c.d+.08)return'Upper chest · soft layer';if(point.y>2.55)return'Shoulder / clavicle · firm layer';return Math.abs(point.x)<.20?'Sternum · firm layer':'Upper chest · soft layer';}
     function tissueLabel(target,id){return touchState?.label||tissueAt(new THREE.Vector3().fromArray(rest,id*3));}
@@ -804,16 +826,23 @@
     function finishTouch(){if(!touchState)return;const id=touchState.id;withdrawal={...touchState,lift:0};touchState=null;awakeSteps=300;controls.enabled=!moving;canvas.classList.remove('holding');try{if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);}catch{}}
     canvas.addEventListener('pointerdown',event=>{if(!window.fitStudyReady||mode==='camera'||event.button!==0||moving||touchState)return;
       if(mode==='touch'){const found=exposedHit(event);if(!found)return;const contact=makeContact(found.hit,found.surface,event.pointerId);if(!contact)return;event.preventDefault();event.stopImmediatePropagation();motion=false;document.getElementById('motion').setAttribute('aria-pressed','false');touchState=contact;appearanceContact=contact;withdrawal=null;controls.enabled=false;canvas.classList.add('holding');document.getElementById('hint').textContent=tissueLabel(contact.surface,contact.nearest)+' · hold to press · release to recover';canvas.setPointerCapture(event.pointerId);updateFinger(contact,0);return;}
-      const hit=pick(event);if(!hit)return;event.preventDefault();event.stopImmediatePropagation();motion=false;document.getElementById('motion').setAttribute('aria-pressed','false');
-      const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()),hit.point);moving={id:event.pointerId,plane,point:hit.point.clone(),start:root.clone()};rootTarget.copy(root);controls.enabled=false;canvas.classList.add('holding');canvas.setPointerCapture(event.pointerId);
+      const hit=supportedHit(event);if(!hit)return;event.preventDefault();event.stopImmediatePropagation();motion=false;document.getElementById('motion').setAttribute('aria-pressed','false');
+      const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()),hit.point),local=model.worldToLocal(hit.point.clone()),ids=[],weights=[],original=[];
+      for(const i of activeNodes){
+        if(supportMask[i]<.07)continue;const p=i*3,d=(pos[p]-local.x)**2+(pos[p+1]-local.y)**2+(pos[p+2]-local.z)**2;
+        const w=Math.exp(-d/.14)*Math.min(1,supportMask[i]*2.3);if(w<.025)continue;
+        ids.push(i);weights.push(w);original.push(pos[p],pos[p+1],pos[p+2]);
+      }
+      if(!ids.length)return;
+      moving={id:event.pointerId,plane,point:hit.point.clone(),ids,weights,original,level:0};rootTarget.set(0,0,0);controls.enabled=false;canvas.classList.add('holding');canvas.setPointerCapture(event.pointerId);
     },{capture:true});
     let hoverTime=0;
-    canvas.addEventListener('pointermove',event=>{if(moving&&event.pointerId===moving.id){cast(event);if(raycaster.ray.intersectPlane(moving.plane,cursorPoint)){delta.copy(cursorPoint).sub(moving.point);if(delta.length()>.24)delta.setLength(.24);rootTarget.copy(moving.start).add(delta);rootTarget.x=THREE.MathUtils.clamp(rootTarget.x,-.28,.28);rootTarget.y=THREE.MathUtils.clamp(rootTarget.y,-.23,.23);rootTarget.z=THREE.MathUtils.clamp(rootTarget.z,-.12,.12);}return;}
-      if((mode==='move'||mode==='touch')&&!event.buttons&&performance.now()-hoverTime>90){hoverTime=performance.now();canvas.classList.toggle('ready',Boolean(mode==='touch'?exposedHit(event):pick(event)));}});
+    canvas.addEventListener('pointermove',event=>{if(moving&&event.pointerId===moving.id){cast(event);if(raycaster.ray.intersectPlane(moving.plane,cursorPoint)){delta.copy(cursorPoint).sub(moving.point);if(delta.length()>.075)delta.setLength(.075);rootTarget.copy(delta);}return;}
+      if((mode==='move'||mode==='touch')&&!event.buttons&&performance.now()-hoverTime>90){hoverTime=performance.now();canvas.classList.toggle('ready',Boolean(mode==='touch'?exposedHit(event):supportedHit(event)));}});
     for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,event=>{if(moving&&moving.id===event.pointerId)finishDrag();if(touchState&&touchState.id===event.pointerId)finishTouch();});
     function stopContact(){finishDrag();finishTouch();withdrawal=null;finger.visible=false;}
     canvas.addEventListener('contextmenu',event=>event.preventDefault());window.addEventListener('blur',stopContact);document.addEventListener('visibilitychange',()=>{stopContact();lastTime=0;accumulator=0;});
-    function setMode(value){stopContact();mode=value;controls.mouseButtons.LEFT=value==='camera'?THREE.MOUSE.ROTATE:null;controls.touches.ONE=value==='camera'?THREE.TOUCH.ROTATE:null;document.getElementById('touch').setAttribute('aria-pressed',String(value==='touch'));document.getElementById('move').setAttribute('aria-pressed',String(value==='move'));document.getElementById('cameraMode').setAttribute('aria-pressed',String(value==='camera'));canvas.classList.toggle('orbit',value==='camera');canvas.classList.remove('ready');document.getElementById('hint').textContent=value==='camera'?'Drag to orbit · scroll or pinch to zoom':value==='touch'?'Hold on exposed silicone to press · release to recover · '+(matchMedia('(pointer:coarse)').matches?'Camera to orbit':'right-drag to orbit'):'Drag to move the mannequin · release to settle · '+(matchMedia('(pointer:coarse)').matches?'Camera to orbit':'right-drag to orbit');}
+    function setMode(value){stopContact();mode=value;controls.mouseButtons.LEFT=value==='camera'?THREE.MOUSE.ROTATE:null;controls.touches.ONE=value==='camera'?THREE.TOUCH.ROTATE:null;document.getElementById('touch').setAttribute('aria-pressed',String(value==='touch'));document.getElementById('move').setAttribute('aria-pressed',String(value==='move'));document.getElementById('cameraMode').setAttribute('aria-pressed',String(value==='camera'));canvas.classList.toggle('orbit',value==='camera');canvas.classList.remove('ready');document.getElementById('hint').textContent=value==='camera'?'Drag horizontally to turn · scroll or pinch for a closer view':value==='touch'?'Hold on exposed silicone to press · release to recover · '+(matchMedia('(pointer:coarse)').matches?'Camera to orbit':'right-drag to orbit'):'Drag the supported area · torso stays fixed · '+(matchMedia('(pointer:coarse)').matches?'Camera to orbit':'right-drag to orbit');}
     document.getElementById('touch').addEventListener('click',()=>setMode('touch'));document.getElementById('move').addEventListener('click',()=>setMode('move'));document.getElementById('cameraMode').addEventListener('click',()=>setMode('camera'));
     document.getElementById('motion').addEventListener('click',()=>{stopContact();motion=!motion;awakeSteps=300;document.getElementById('motion').setAttribute('aria-pressed',String(motion));});
     document.getElementById('support').addEventListener('input',e=>{support=+e.target.value/100;awakeSteps=300;document.getElementById('supportValue').value=e.target.value;});
