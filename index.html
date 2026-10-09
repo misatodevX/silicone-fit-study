@@ -33,20 +33,20 @@
   <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
 </head>
 <body>
-  <canvas id="stage" tabindex="0" aria-label="Adult silicone display mannequin wearing an opaque red bra. Touch mode presses exposed silicone with a fingertip. Move mode adjusts the supported soft region while the torso stays fixed. Camera mode rotates horizontally. H hides controls; R resets."></canvas>
+  <canvas id="stage" tabindex="0" aria-label="Adult silicone display mannequin wearing an opaque red bra. Touch mode interacts with exposed silicone. Move mode adjusts the supported soft region while the torso stays fixed. Camera mode rotates horizontally. H hides controls; R resets."></canvas>
   <div class="label interface"><span>FORM / 01</span><small>Bra fit &amp; support study</small></div>
   <div id="ui" class="interface">
     <p id="hint">Hold on exposed silicone to press · release to recover · right-drag to orbit</p>
     <div class="toolbar" role="toolbar" aria-label="Fit study controls">
       <div class="modes" role="group" aria-label="View and motion">
-        <button id="touch" aria-pressed="true" title="Press exposed silicone with the fingertip">Touch</button>
+        <button id="touch" aria-pressed="true" title="Touch exposed silicone">Touch</button>
         <button id="move" aria-pressed="false" title="Drag the supported area; the torso stays fixed">Move</button>
         <button id="motion" aria-pressed="false" title="Gentle support response with a fixed torso">Motion</button>
         <button id="cameraMode" aria-pressed="false" title="Drag horizontally to turn; scroll or pinch for a closer view">Camera</button>
       </div>
       <span class="divider"></span>
       <div class="setting"><label for="support">Support<output id="supportValue">60</output></label><input id="support" type="range" min="0" max="100" value="60" aria-label="Garment support"></div>
-      <div class="setting"><label for="pressure">Pressure<output id="pressureValue">55</output></label><input id="pressure" type="range" min="10" max="100" value="55" aria-label="Fingertip pressure"></div>
+      <div class="setting"><label for="pressure">Pressure<output id="pressureValue">55</output></label><input id="pressure" type="range" min="10" max="100" value="55" aria-label="Contact pressure"></div>
       <button id="reset" class="icon" title="Reset model and view (R)" aria-label="Reset model and view"><svg viewBox="0 0 24 24"><path d="M4 10a8 8 0 1 1 .8 6M4 4v6h6"/></svg></button>
       <button id="hide" class="icon" title="Hide interface (H). H or Escape restores it." aria-label="Hide interface"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path d="m3 3 18 18"/></svg></button>
     </div>
@@ -427,7 +427,7 @@
       for(const i of gradientNodes){const p=i*9;for(let a=0;a<3;a++){renderGradient[p+a]=(renderDisplacement[(i+1)*3+a]-renderDisplacement[(i-1)*3+a])/(2*GRID);renderGradient[p+3+a]=(renderDisplacement[(i+NX)*3+a]-renderDisplacement[(i-NX)*3+a])/(2*GRID);renderGradient[p+6+a]=(renderDisplacement[(i+NX*NY)*3+a]-renderDisplacement[(i-NX*NY)*3+a])/(2*GRID);}}}
     function deformNormal(s,normal,result){let a=1,b=0,c=0,d=0,e=1,f=0,g=0,h=0,i=1;for(let j=0;j<8;j++){const p=s.gradientIds[j]*9,w=s.gradientWeights[j];a+=renderGradient[p]*w;d+=renderGradient[p+1]*w;g+=renderGradient[p+2]*w;b+=renderGradient[p+3]*w;e+=renderGradient[p+4]*w;h+=renderGradient[p+5]*w;c+=renderGradient[p+6]*w;f+=renderGradient[p+7]*w;i+=renderGradient[p+8]*w;}const x=normal.x,y=normal.y,z=normal.z;return result.set((e*i-f*h)*x+(f*g-d*i)*y+(d*h-e*g)*z,(c*h-b*i)*x+(a*i-c*g)*y+(b*g-a*h)*z,(b*f-c*e)*x+(c*d-a*f)*y+(a*e-b*d)*z).normalize();}
     const DT=1/120,ITERATIONS=6,root=new THREE.Vector3(),rootVelocity=new THREE.Vector3(),rootTarget=new THREE.Vector3(),rootAcceleration=new THREE.Vector3(),motionTarget=new THREE.Vector3(),zero=new THREE.Vector3(),delta=new THREE.Vector3();
-    let support=.6,moving=null,mode='touch',motion=false,time=0,tick=0,accumulator=0,lastTime=0,settling=false,awakeSteps=0,touchState=null,pressure=.55,withdrawal=null,appearanceContact=null;
+    let support=.6,moving=null,mode='touch',motion=false,time=0,tick=0,accumulator=0,lastTime=0,settling=false,awakeSteps=0,touchState=null,pressure=.55,appearanceContact=null;
     function solveEdges(reverse){for(let n=0;n<activeEdges.length;n++){const e=activeEdges[reverse?activeEdges.length-1-n:n],a=E[e*2],b=E[e*2+1],ma=inv[a],mb=inv[b];const p=a*3,q=b*3,dx=pos[q]-pos[p],dy=pos[q+1]-pos[p+1],dz=pos[q+2]-pos[p+2],length=Math.sqrt(dx*dx+dy*dy+dz*dz);if(length<1e-8)continue;
       const alpha=compliance[e]/(DT*DT),dl=(-(length-L[e])-alpha*edgeLambda[e])/(ma+mb+alpha);edgeLambda[e]+=dl;const scale=-dl/length;pos[p]+=dx*scale*ma;pos[p+1]+=dy*scale*ma;pos[p+2]+=dz*scale*ma;pos[q]-=dx*scale*mb;pos[q+1]-=dy*scale*mb;pos[q+2]-=dz*scale*mb;}}
     function solveVolumes(reverse){for(let n=0;n<activeTets.length;n++){const t=activeTets[reverse?activeTets.length-1-n:n],k=t*4,a=T[k],b=T[k+1],c=T[k+2],d=T[k+3],ma=inv[a],mb=inv[b],mc=inv[c],md=inv[d];const p=a*3,q=b*3,r=c*3,s=d*3;
@@ -538,7 +538,7 @@
     const skinRest=Float32Array.from(bodyGeometry.attributes.position.array),skinRestNormals=new Float32Array(skinRest.length),skinUV=new Float32Array(skinRest.length/3*2),skinColors=new Float32Array(skinRest.length);
     for(let i=0;i<skinRest.length/3;i++){const p=i*3,x=skinRest[p],y=skinRest[p+1],z=skinRest[p+2],[w,d]=section(y);skinUV[i*2]=Math.atan2(x/w,z/d)/(Math.PI*2)+.5;skinUV[i*2+1]=(y+.1)/5.1;fieldNormal(x,y,z,true).toArray(skinRestNormals,p);}
     // Low-frequency occlusion is baked from the procedural body field. Live
-    // contact shadows are still evaluated against the moving garment and probe.
+    // contact shadows are still evaluated against the moving garment.
     const aoN=new THREE.Vector3(),aoT=new THREE.Vector3(),aoB=new THREE.Vector3();
     function skinAO(x,y,z,p){aoN.fromArray(skinRestNormals,p);aoT.set(0,Math.abs(aoN.y)>.9?0:1,Math.abs(aoN.y)>.9?1:0).cross(aoN).normalize();aoB.crossVectors(aoN,aoT);const base=skinDistance(x,z,fieldContext(y),true),e=.004,slope=Math.max(.25,(skinDistance(x+aoN.x*e,z+aoN.z*e,fieldContext(y+aoN.y*e),true)-base)/e);let occlusion=0;
       for(const[h,weight]of[[.045,.5],[.12,.32],[.26,.18]])for(const t of[aoT,aoB])for(const sign of[-1,1]){const px=x+h*(aoN.x*.8+t.x*.6*sign),py=y+h*(aoN.y*.8+t.y*.6*sign),pz=z+h*(aoN.z*.8+t.z*.6*sign),distance=skinDistance(px,pz,fieldContext(py),true)-base;occlusion+=weight*.25*THREE.MathUtils.clamp(1-distance/(h*slope*.8),0,1);}let local=0;
@@ -664,28 +664,7 @@
       for(const[w,h,x,y]of [[.088,.010,0,.032],[.088,.010,0,-.032],[.010,.064,-.039,0],[.010,.064,.039,0],[.068,.009,0,0]]){const bar=new THREE.Mesh(new RoundedBoxGeometry(w,h,.010,2,.003),metal);bar.position.set(x,y,0);hardware.add(bar);}model.add(hardware);fittings.push({hardware,binding:strapBinding(side,0,.155,.030)});
     }
 
-    // A rounded silicone hand approaches with the index finger. Its wrist
-    // continues out of the view, so the contact probe has no exposed cut end.
-    const finger=new THREE.Group(),fingerMaterial=silicone.clone();fingerMaterial.color.setHex(0xf5eee8);fingerMaterial.vertexColors=false;fingerMaterial.onBeforeCompile=silicone.onBeforeCompile;fingerMaterial.customProgramCacheKey=silicone.customProgramCacheKey;
-    const fingerProfile=[[0,0,.001],[.018,.001,.023],[.042,.002,.034],[.085,.004,.035],[.12,.007,.032],[.16,.009,.031],[.18,.012,.034],[.225,.017,.033],[.26,.022,.030],[.29,.027,.030],[.33,.035,.036],[.39,.048,.041]],fingerSlopes=profileSlopes(fingerProfile),fingerPoints=[],fingerUV=[],fingerFaces=[];
-    for(let r=0;r<=76;r++){const z=r/76*.39,[cx,radius]=profileAt(fingerProfile,fingerSlopes,z),crease=.0015*(Math.exp(-(((z-.15)/.006)**2))+Math.exp(-(((z-.27)/.006)**2)));
-      for(let c=0;c<=36;c++){const t=c/36*Math.PI*2,k=r*37+c;fingerPoints.push(cx+Math.sin(t)*(radius-crease),Math.cos(t)*(radius-crease)*.92,z);fingerUV.push(c/36,r/76);if(r<76&&c<36)fingerFaces.push(k,k+37,k+1,k+1,k+37,k+38);}}
-    const fingerGeometry=new THREE.BufferGeometry();fingerGeometry.setAttribute('position',new THREE.Float32BufferAttribute(fingerPoints,3));fingerGeometry.setAttribute('uv',new THREE.Float32BufferAttribute(fingerUV,2));fingerGeometry.setIndex(fingerFaces);fingerGeometry.computeVertexNormals();
-    function handSkin(geometry){geometry.setAttribute('skinPosition',geometry.attributes.position);geometry.setAttribute('skinNormal',geometry.attributes.normal);const mesh=new THREE.Mesh(geometry,fingerMaterial);mesh.castShadow=true;mesh.receiveShadow=true;finger.add(mesh);return mesh;}
-    const digit=handSkin(fingerGeometry);
-    function ellipsoidDistance(x,y,z,cx,cy,cz,rx,ry,rz){const a=x-cx,b=y-cy,c=z-cz,k0=Math.sqrt((a/rx)**2+(b/ry)**2+(c/rz)**2),k1=Math.sqrt((a/(rx*rx))**2+(b/(ry*ry))**2+(c/(rz*rz))**2);return k1>1e-7?k0*(k0-1)/k1:-Math.min(rx,ry,rz);}
-    function handDistance(x,y,z){let d=ellipsoidDistance(x,y,z,-.102,-.005,.535,.164,.064,.187);d=smoothUnion(d,ellipsoidDistance(x,y,z,-.22,-.045,.53,.075,.075,.12),.035);d=smoothUnion(d,ellipsoidDistance(x,y,z,-.19,-.098,.44,.066,.071,.10),.022);
-      for(const[cx,cz,rx]of[[-.065,.357,.034],[-.145,.387,.032],[-.215,.431,.028]]){d=smoothUnion(d,ellipsoidDistance(x,y,z,cx,-.025,cz,rx,.066,.115),.025);d=smoothUnion(d,ellipsoidDistance(x,y,z,cx,-.108,cz+.059,rx,.092,.037),.020);}
-      const forearm=THREE.MathUtils.clamp(z-.76,0,1),w=.090+.045*forearm,h=.056+.034*forearm,dz=Math.min(0,z-.72),wrist=(Math.sqrt(((x+.105)/w)**2+((y+.004)/h)**2+(dz/.11)**2)-1)*h;d=smoothUnion(d,wrist,.028);
-      d=smoothUnion(d,ellipsoidDistance(x,y,z,.046,.001,.382,.049,.040,.073),.025);return d;}
-    const handResolution=80,handIso=new MarchingCubes(handResolution,fingerMaterial,false,false,60000);handIso.isolation=0;
-    const handMin=new THREE.Vector3(-.33,-.23,.21),handExtent=new THREE.Vector3(.47,.34,1.31);
-    for(let z=0;z<handResolution;z++)for(let y=0;y<handResolution;y++)for(let x=0;x<handResolution;x++){const wx=handMin.x+x/handResolution*handExtent.x,wy=handMin.y+y/handResolution*handExtent.y,wz=handMin.z+z/handResolution*handExtent.z;handIso.field[x+y*handResolution+z*handResolution*handResolution]=-handDistance(wx,wy,wz);}
-    handIso.update();const handPositions=handIso.geometry.attributes.position.array.slice(0,handIso.count*3);for(let i=0;i<handPositions.length;i+=3){handPositions[i]=handMin.x+(handPositions[i]+1)*.5*handExtent.x;handPositions[i+1]=handMin.y+(handPositions[i+1]+1)*.5*handExtent.y;handPositions[i+2]=handMin.z+(handPositions[i+2]+1)*.5*handExtent.z;}
-    const handRaw=new THREE.BufferGeometry();handRaw.setAttribute('position',new THREE.BufferAttribute(handPositions,3));const handGeometry=mergeVertices(handRaw,.00002);handRaw.dispose();handIso.geometry.dispose();handGeometry.computeVertexNormals();handSkin(handGeometry);
-    const nailPoints=[],nailFaces=[];for(let r=0;r<=16;r++)for(let c=0;c<=20;c++){const v=r/16,u=c/20,angle=(u-.5)*1.4,z=.023+v*.074,[cx,radius]=profileAt(fingerProfile,fingerSlopes,z),edge=Math.sin(Math.PI*v)**.35,x=cx+Math.sin(angle)*radius*.82*edge,y=Math.cos(angle*.82)*radius*.92+.0012;nailPoints.push(x,y,z);const k=r*21+c;if(r<16&&c<20)nailFaces.push(k,k+1,k+21,k+1,k+22,k+21);}
-    const nailGeometry=new THREE.BufferGeometry();nailGeometry.setAttribute('position',new THREE.Float32BufferAttribute(nailPoints,3));nailGeometry.setIndex(nailFaces);nailGeometry.computeVertexNormals();const nail=new THREE.Mesh(nailGeometry,new THREE.MeshPhysicalMaterial({color:0xdcc3b6,roughness:.31,clearcoat:.30,clearcoatRoughness:.25,side:THREE.DoubleSide}));nail.castShadow=true;finger.add(nail);finger.visible=false;scene.add(finger);
-    const fingerDirection=new THREE.Vector3(),cameraRight=new THREE.Vector3(),zAxis=new THREE.Vector3(0,0,1);
+    const zAxis=new THREE.Vector3(0,0,1);
     const bodySurface={mesh:body,pos,prev,rest,mass:inv,soft};
 
     // The first HDR attachment stores the complete shading; the second stores
@@ -698,7 +677,7 @@
     const diffusionX=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,depthBuffer:false});
     const diffusionY=new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,depthBuffer:false});
     const normalMaterial=new THREE.MeshNormalMaterial({side:THREE.DoubleSide});
-    if(opticalEnabled){const materials=new Set();scene.traverse(o=>{if(o.isMesh)materials.add(o.material);});for(const material of materials){const original=material.onBeforeCompile,originalKey=material.customProgramCacheKey,isSkin=material===silicone||material===fingerMaterial;material.onBeforeCompile=shader=>{original.call(material,shader);shader.fragmentShader='layout(location=1) out highp vec4 skinDiffuse;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>','#include <opaque_fragment>\nskinDiffuse='+ (isSkin?'vec4(totalDiffuse,1.0)':'vec4(0.0)')+';');};material.customProgramCacheKey=()=>originalKey.call(material)+(isSkin?'|skin-mrt':'|occluding-mrt');}}
+    if(opticalEnabled){const materials=new Set();scene.traverse(o=>{if(o.isMesh)materials.add(o.material);});for(const material of materials){const original=material.onBeforeCompile,originalKey=material.customProgramCacheKey,isSkin=material===silicone;material.onBeforeCompile=shader=>{original.call(material,shader);shader.fragmentShader='layout(location=1) out highp vec4 skinDiffuse;\n'+shader.fragmentShader;shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>','#include <opaque_fragment>\nskinDiffuse='+ (isSkin?'vec4(totalDiffuse,1.0)':'vec4(0.0)')+';');};material.customProgramCacheKey=()=>originalKey.call(material)+(isSkin?'|skin-mrt':'|occluding-mrt');}}
     const postScene=new THREE.Scene(),postCamera=new THREE.OrthographicCamera(-1,1,1,-1,0,1),postSize=new THREE.Vector2();
     const postVertex=/* glsl */`varying vec2 vUv; void main(){vUv=uv;gl_Position=vec4(position.xy,0.0,1.0);}`;
     const blurUniforms={tDiffuse:{value:hdrTarget.textures[1]},tDepth:{value:hdrTarget.depthTexture},tNormal:{value:normalTarget.texture},direction:{value:new THREE.Vector2(1,0)},viewport:{value:postSize},cameraNear:{value:camera.near},cameraFar:{value:camera.far},focalLength:{value:camera.projectionMatrix.elements[5]}};
@@ -796,7 +775,6 @@
       for(const item of fittings){readBinding(item.binding,item.hardware.position,normalVector);item.hardware.quaternion.setFromUnitVectors(zAxis,normalVector);}
       for(let i=0;i<stitchBindings.length;i++){const[a,b]=stitchBindings[i];readBinding(a,stitchA);readBinding(b,stitchB);tangent.copy(stitchB).sub(stitchA);stitchScale.y=tangent.length();stitchRotation.setFromUnitVectors(stitchAxis,tangent.normalize());stitchA.add(stitchB).multiplyScalar(.5);stitchMatrix.compose(stitchA,stitchRotation,stitchScale);stitchMesh.setMatrixAt(i,stitchMatrix);}stitchMesh.instanceMatrix.needsUpdate=true;
       for(let j=0;j<fibers.length;j++){const f=fibers[j];readBinding(f.binding,pointVector,normalVector);fiberTangent.set(0,-1,0).addScaledVector(normalVector,normalVector.y).normalize();fiberSide.crossVectors(normalVector,fiberTangent);fiberDirection.copy(fiberTangent).multiplyScalar(Math.cos(f.angle)*.96).addScaledVector(fiberSide,Math.sin(f.angle)*.96).addScaledVector(normalVector,.28).normalize();fiberRotation.setFromUnitVectors(stitchAxis,fiberDirection);pointVector.addScaledVector(fiberDirection,f.length*.5);fiberScale.set(f.width,f.length,f.width);fiberMatrix.compose(pointVector,fiberRotation,fiberScale);fiberMesh.setMatrixAt(j,fiberMatrix);}fiberMesh.instanceMatrix.needsUpdate=true;
-      if(touchState){updateFinger(touchState,0);}else if(withdrawal){withdrawal.lift+=.008;updateFinger(withdrawal,withdrawal.lift);if(withdrawal.lift>.12){withdrawal=null;finger.visible=false;}}
     }
 
     // Contact is restricted to visible silicone. Opaque garment geometry occludes
@@ -822,10 +800,9 @@
       return{id,surface:bodySurface,point,normal,ids,weights,original,nearest,anchor:new THREE.Vector3().fromArray(pos,nearest*3),depth,level:0,lift:0,label,probeBinding,initialDisplacement};
     }
 
-    function updateFinger(contact,lift){const current=sampleDisplacement(contact.probeBinding,new THREE.Vector3()).sub(contact.initialDisplacement).add(contact.point).add(root);finger.position.copy(current).addScaledVector(contact.normal,.002+lift);cameraRight.setFromMatrixColumn(camera.matrixWorld,0);fingerDirection.copy(contact.normal).multiplyScalar(.52).addScaledVector(cameraRight,.86);fingerDirection.y-=.20;fingerDirection.normalize();finger.quaternion.setFromUnitVectors(zAxis,fingerDirection);finger.visible=true;}
-    function finishTouch(){if(!touchState)return;const id=touchState.id;withdrawal={...touchState,lift:0};touchState=null;awakeSteps=300;controls.enabled=!moving;canvas.classList.remove('holding');try{if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);}catch{}}
+    function finishTouch(){if(!touchState)return;const id=touchState.id;touchState=null;awakeSteps=300;controls.enabled=!moving;canvas.classList.remove('holding');try{if(canvas.hasPointerCapture(id))canvas.releasePointerCapture(id);}catch{}}
     canvas.addEventListener('pointerdown',event=>{if(!window.fitStudyReady||mode==='camera'||event.button!==0||moving||touchState)return;
-      if(mode==='touch'){const found=exposedHit(event);if(!found)return;const contact=makeContact(found.hit,found.surface,event.pointerId);if(!contact)return;event.preventDefault();event.stopImmediatePropagation();motion=false;document.getElementById('motion').setAttribute('aria-pressed','false');touchState=contact;appearanceContact=contact;withdrawal=null;controls.enabled=false;canvas.classList.add('holding');document.getElementById('hint').textContent=tissueLabel(contact.surface,contact.nearest)+' · hold to press · release to recover';canvas.setPointerCapture(event.pointerId);updateFinger(contact,0);return;}
+      if(mode==='touch'){const found=exposedHit(event);if(!found)return;const contact=makeContact(found.hit,found.surface,event.pointerId);if(!contact)return;event.preventDefault();event.stopImmediatePropagation();motion=false;document.getElementById('motion').setAttribute('aria-pressed','false');touchState=contact;appearanceContact=contact;controls.enabled=false;canvas.classList.add('holding');document.getElementById('hint').textContent=tissueLabel(contact.surface,contact.nearest)+' · hold to press · release to recover';canvas.setPointerCapture(event.pointerId);return;}
       const hit=supportedHit(event);if(!hit)return;event.preventDefault();event.stopImmediatePropagation();motion=false;document.getElementById('motion').setAttribute('aria-pressed','false');
       const plane=new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()),hit.point),local=model.worldToLocal(hit.point.clone()),ids=[],weights=[],original=[];
       for(const i of activeNodes){
@@ -840,7 +817,7 @@
     canvas.addEventListener('pointermove',event=>{if(moving&&event.pointerId===moving.id){cast(event);if(raycaster.ray.intersectPlane(moving.plane,cursorPoint)){delta.copy(cursorPoint).sub(moving.point);if(delta.length()>.075)delta.setLength(.075);rootTarget.copy(delta);}return;}
       if((mode==='move'||mode==='touch')&&!event.buttons&&performance.now()-hoverTime>90){hoverTime=performance.now();canvas.classList.toggle('ready',Boolean(mode==='touch'?exposedHit(event):supportedHit(event)));}});
     for(const type of ['pointerup','pointercancel','lostpointercapture'])canvas.addEventListener(type,event=>{if(moving&&moving.id===event.pointerId)finishDrag();if(touchState&&touchState.id===event.pointerId)finishTouch();});
-    function stopContact(){finishDrag();finishTouch();withdrawal=null;finger.visible=false;}
+    function stopContact(){finishDrag();finishTouch();}
     canvas.addEventListener('contextmenu',event=>event.preventDefault());window.addEventListener('blur',stopContact);document.addEventListener('visibilitychange',()=>{stopContact();lastTime=0;accumulator=0;});
     function setMode(value){stopContact();mode=value;controls.mouseButtons.LEFT=value==='camera'?THREE.MOUSE.ROTATE:null;controls.touches.ONE=value==='camera'?THREE.TOUCH.ROTATE:null;document.getElementById('touch').setAttribute('aria-pressed',String(value==='touch'));document.getElementById('move').setAttribute('aria-pressed',String(value==='move'));document.getElementById('cameraMode').setAttribute('aria-pressed',String(value==='camera'));canvas.classList.toggle('orbit',value==='camera');canvas.classList.remove('ready');document.getElementById('hint').textContent=value==='camera'?'Drag horizontally to turn · scroll or pinch for a closer view':value==='touch'?'Hold on exposed silicone to press · release to recover · '+(matchMedia('(pointer:coarse)').matches?'Camera to orbit':'right-drag to orbit'):'Drag the supported area · torso stays fixed · '+(matchMedia('(pointer:coarse)').matches?'Camera to orbit':'right-drag to orbit');}
     document.getElementById('touch').addEventListener('click',()=>setMode('touch'));document.getElementById('move').addEventListener('click',()=>setMode('move'));document.getElementById('cameraMode').addEventListener('click',()=>setMode('camera'));
